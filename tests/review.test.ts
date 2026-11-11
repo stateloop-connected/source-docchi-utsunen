@@ -25,7 +25,7 @@ describe('リザルトの称号とひとこと', () => {
   it('罠・帽子・ボス・両取りの称号は、立ち位置の偏りより優先する', () => {
     const trap = createGame(1);
     trap.got.trap = 3;
-    expect(reviewPlay(trap, 0.8, 0).title).toBe('激安ハンター');
+    expect(reviewPlay(trap, 0.8, 0).title).toBe('無料に弱い人');
     const hat = createGame(1);
     hat.player.hats = 3;
     expect(reviewPlay(hat, 0.5, 0).title).toBe('帽子コレクター');

@@ -241,7 +241,7 @@ const EFFECT_LABEL: Readonly<Record<BlockKind, string>> = {
   bomb: '一斉削除！',
   vacation: '有給休暇！',
   expand: '増築！',
-  trap: '罠だ！！',
+  trap: '通知が止まらない！',
   hat: '帽子ゲット…',
 };
 

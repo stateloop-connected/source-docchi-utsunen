@@ -52,7 +52,7 @@ export function reviewPlay(s: GameState, blockShare: number, nearMisses: number)
   const aimed = s.hitTicks * DT >= REVIEW.sniperSeconds;
 
   let title = 'バランス型';
-  if (s.got.trap >= REVIEW.traps) title = '激安ハンター';
+  if (s.got.trap >= REVIEW.traps) title = '無料に弱い人';
   else if (s.player.hats >= REVIEW.hats) title = '帽子コレクター';
   else if (s.bossesKilled >= REVIEW.bosses) title = 'ボスキラー';
   else if (s.doubles >= REVIEW.doubles) title = '両取り名人';
@@ -65,7 +65,7 @@ export function reviewPlay(s: GameState, blockShare: number, nearMisses: number)
   if (blockShare >= REVIEW.greedy) hint = '強化に寄せすぎて敵があふれた。埋まり度が半分を超えたら戻ろう';
   else if (blockShare <= REVIEW.timid) hint = '敵ばかり撃って火力が伸びなかった。凪のうちに強化を取ろう';
   else if (nearMisses >= REVIEW.nearMisses) hint = `あと少しで逃した強化が ${nearMisses} 個。数字が赤いブロックは見送ろう`;
-  else if (s.got.trap >= REVIEW.trapHint) hint = `「激安！」を ${s.got.trap} 回壊した。あれは罠`;
+  else if (s.got.trap >= REVIEW.trapHint) hint = `「無料登録」は罠。${s.got.trap} 回壊して、届いたのは通知だけ`;
   else if (s.missed.bomb >= REVIEW.bombsMissed) hint = `一斉削除を ${s.missed.bomb} 個見送った。埋まってきたら頼ろう`;
   else if (aimed && critRate <= REVIEW.critHint) hint = `会心は ${Math.round(critRate * 100)}%。敵の真ん中を捉えるとダメージ ${AIM.critMult} 倍`;
 

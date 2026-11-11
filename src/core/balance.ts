@@ -142,7 +142,7 @@ export const BLOCKS: Readonly<Record<BlockKind, BlockDef>> = {
   bomb: { name: '一斉削除', cost: 1.5 },
   vacation: { name: '有給休暇', cost: 2.0 },
   expand: { name: '増築', cost: 2.5 },
-  trap: { name: '激安！', cost: 0.7 },
+  trap: { name: '無料登録', cost: 0.7 },
   hat: { name: '帽子', cost: 1.5 },
 };
 

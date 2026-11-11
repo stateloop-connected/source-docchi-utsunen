@@ -523,7 +523,7 @@ function drawBlock(c: Ctx, kind: BlockKind): void {
     c.save();
     c.translate(75, 40);
     c.rotate(-0.06);
-    text(c, BLOCKS.trap.name, 0, 0, { size: 29, weight: 900, color: '#e3101f', stroke: '#ffffff', strokeWidth: 6 });
+    text(c, BLOCKS.trap.name, 0, 0, { size: 27, weight: 900, color: '#e3101f', stroke: '#ffffff', strokeWidth: 6, maxWidth: 132 });
     c.restore();
     return;
   }
