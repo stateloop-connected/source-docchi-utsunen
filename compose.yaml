@@ -1,0 +1,107 @@
+# 開発サーバー:   docker compose up                 → http://localhost:5173/
+# 単体テスト:     docker compose run --rm test
+# バランス検証:   docker compose run --rm sim
+# 型検査:         docker compose run --rm check
+# ビルド:         docker compose run --rm build     → dist/
+# ビルドの確認:   docker compose run --rm --service-ports preview → http://localhost:4173/
+# 参照シミュレータ: docker compose run --rm reference
+# イメージを更新するときは、公開から7日以上たったものをダイジェストで固定する。
+x-hardening: &hardening
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+  read_only: true
+  tmpfs: [/tmp]
+
+x-node: &node
+  <<: *hardening
+  image: node:24-alpine@sha256:ebfe2f90462722a7a4de65e91990e97fe0d401c70e0e762c5b53302f905ec1c1
+  user: node
+  working_dir: /work
+  environment:
+    VITE_CACHE_DIR: /tmp/vite
+    VITE_POLL: "1"
+    HOME: /tmp
+
+# リポジトリは読み取り専用、依存は名前付きボリュームから読み取り専用で見せる
+x-node-volumes: &node-volumes
+  - .:/work:ro
+  - node_modules:/node_modules:ro
+
+# ネットワークなしで動かす道具
+x-offline: &offline
+  <<: *node
+  profiles: [tools]
+  network_mode: none
+  volumes: *node-volumes
+  depends_on:
+    deps:
+      condition: service_completed_successfully
+
+services:
+  # 開発サーバー。127.0.0.1 だけで待ち受ける
+  dev:
+    <<: *node
+    volumes: *node-volumes
+    ports: ["127.0.0.1:5173:5173"]
+    command: /node_modules/.bin/vite --configLoader native --host 0.0.0.0 --port 5173 --strictPort
+    depends_on:
+      deps:
+        condition: service_completed_successfully
+
+  # 依存を package-lock.json の integrity で検証して入れる。リポジトリには書き込まない
+  deps:
+    <<: *hardening
+    image: node:24-alpine@sha256:ebfe2f90462722a7a4de65e91990e97fe0d401c70e0e762c5b53302f905ec1c1
+    working_dir: /deps
+    environment:
+      HOME: /tmp
+    volumes:
+      - ./package.json:/deps/package.json:ro
+      - ./package-lock.json:/deps/package-lock.json:ro
+      - ./.npmrc:/deps/.npmrc:ro
+      - node_modules:/deps/node_modules
+    command: npm ci --no-audit --no-fund
+
+  test:
+    <<: *offline
+    command: /node_modules/.bin/vitest run --configLoader native
+
+  sim:
+    <<: *offline
+    command: node src/sim/cli.ts
+
+  check:
+    <<: *offline
+    command: /node_modules/.bin/tsc --noEmit
+
+  # dist/ だけ書き込み可にして静的ファイルを出力する
+  build:
+    <<: *offline
+    volumes:
+      - .:/work:ro
+      - node_modules:/node_modules:ro
+      - ./dist:/work/dist
+    command: sh -c "/node_modules/.bin/tsc --noEmit && /node_modules/.bin/vite build --configLoader native"
+
+  # ビルドした dist/ を配信して確かめる
+  preview:
+    <<: *node
+    profiles: [tools]
+    volumes: *node-volumes
+    ports: ["127.0.0.1:4173:4173"]
+    command: /node_modules/.bin/vite preview --configLoader native --host 0.0.0.0 --port 4173 --strictPort
+
+  # Python の参照シミュレータ（標準ライブラリのみ。数分かかる）
+  reference:
+    <<: *hardening
+    image: python:3.13-slim@sha256:7c61056e61ac89e852de05f3dc6fa51a6dd2181797bceed46aa725dd7cb2cd3b
+    profiles: [tools]
+    user: "1000:1000"
+    network_mode: none
+    working_dir: /tmp
+    volumes:
+      - ./reference:/work:ro
+    command: python -I -B /work/balance_sim.py
+
+volumes:
+  node_modules:
