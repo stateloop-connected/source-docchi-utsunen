@@ -244,7 +244,7 @@ const EFFECT_LABEL: Readonly<Record<BlockKind, string>> = {
   buddy: '相棒 参上！',
   bomb: '一斉削除！',
   vacation: '有給休暇！',
-  expand: '増築！',
+  expand: `キャパ拡張！ 容量 +${B.expand}`,
   trap: '通知が止まらない！',
   hat: '帽子ゲット…',
 };

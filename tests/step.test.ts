@@ -239,7 +239,7 @@ describe('ブロック', () => {
     expect(step(s, RIGHT)).toContainEqual({ type: 'rankUp', rank: 4, stageChanged: true });
   });
 
-  it('相棒は 3 台まで、増築は容量 +10 を 3 回まで', () => {
+  it('相棒は 3 台まで、キャパ拡張は容量 +10 を 3 回まで', () => {
     const s = quietGame();
     for (let i = 0; i < 5; i++) {
       putBlock(s, 'buddy');
