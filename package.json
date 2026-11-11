@@ -1,6 +1,7 @@
 {
   "name": "docchi-utsunen",
   "private": true,
+  "license": "MIT",
   "type": "module",
   "scripts": {
     "dev": "vite",

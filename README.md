@@ -51,3 +51,7 @@ docker compose run --rm reference                 # Python の参照シミュレ
 | `reference/` | バランスの参照シミュレータ（Python）と、単体テスト用の期待値 |
 
 ゲームの中では画像・音声・フォントの素材ファイルを使わず、絵も音もすべてコードで作っています（リポジトリにある画像は、リンクを貼ったときに出る `public/ogp.jpg` だけです）。実行時の依存ライブラリもありません。
+
+## ライセンス
+
+MIT License です（[LICENSE](LICENSE)）。
