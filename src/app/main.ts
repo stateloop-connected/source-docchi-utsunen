@@ -35,6 +35,11 @@ const RESULT_DELAY = 1.5;
 const FADE_SECONDS = 0.35;
 /** 実解像度を上げる上限。高すぎると描画が重くなる */
 const MAX_PIXEL_RATIO = 2;
+/** 指で操作する端末か（タッチが主な入力）。指を置く場所をあけるかどうかに使う */
+const FINGER_INPUT = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
+/** 指を置く場所の高さ。画面の高さに対する割合と、最低限の px */
+const FINGER_AREA_RATIO = 0.1;
+const FINGER_AREA_MIN = 64;
 /** 1 フレームの経過時間の上限（秒）。タブが戻った直後などの飛びを捨てる */
 const MAX_FRAME = 0.1;
 /** デモの字幕「あああああ」を出す埋まり度の割合 */
@@ -357,7 +362,9 @@ ${location.origin}${location.pathname}`;
 
   private onPointer(e: PointerEvent): void {
     e.preventDefault();
-    this.synth.unlock();
+    // 指で触れた瞬間は、ブラウザがまだ「利用者の操作」と認めないので、音の有効化は離したとき（pointerup）に任せる。
+    // 触れた瞬間に試みると、有効化できないうえにコンソールへ警告が出る
+    if (e.pointerType !== 'touch') this.synth.unlock();
     const rect = this.canvas.getBoundingClientRect();
     const x = ((e.clientX - rect.left) / rect.width) * W;
     const y = ((e.clientY - rect.top) / rect.height) * H;
@@ -448,11 +455,19 @@ ${location.origin}${location.pathname}`;
   // ---------------------------------------------------------------- 描画
 
   private resize(): void {
-    const scale = Math.min(window.innerWidth / W, window.innerHeight / H);
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    // 指で遊ぶ縦長の画面では、キャンバスを上に寄せて、下に指を置く場所をあける
+    // （真ん中に置くと、指がプレイヤーと武器の表示を隠してしまう）。余りが少なければ、キャンバスを少し縮めて確保する
+    const finger = FINGER_INPUT && vh > vw;
+    const reserve = finger ? Math.max(FINGER_AREA_MIN, Math.round(vh * FINGER_AREA_RATIO)) : 0;
+    const scale = Math.min(vw / W, (vh - reserve) / H);
     const cssW = Math.floor(W * scale);
     const cssH = Math.floor(H * scale);
     this.canvas.style.width = `${cssW}px`;
     this.canvas.style.height = `${cssH}px`;
+    document.body.classList.toggle('finger', finger);
+    document.body.style.setProperty('--finger-area', `${Math.max(0, vh - cssH)}px`);
     const ratio = Math.min(window.devicePixelRatio || 1, MAX_PIXEL_RATIO);
     this.canvas.width = Math.round(cssW * ratio);
     this.canvas.height = Math.round(cssH * ratio);

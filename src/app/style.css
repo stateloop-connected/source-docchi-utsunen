@@ -57,3 +57,23 @@ canvas {
     pointer-events: none;
   }
 }
+
+/* 指で遊ぶ縦長の画面では、キャンバスを上に寄せ、下にあけた場所に「ここをなぞる」と書いておく（高さは main.ts が決める） */
+body.finger {
+  align-items: flex-start;
+}
+
+body.finger::after {
+  content: '←　ここをなぞって動かす　→';
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: var(--finger-area, 0px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font: 700 13px sans-serif;
+  color: rgba(255, 255, 255, 0.45);
+  pointer-events: none;
+}
