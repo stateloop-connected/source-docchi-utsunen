@@ -9,9 +9,10 @@ on:
 permissions:
   contents: read
 
+# プルリクエストは新しい push が来たら古い実行を止める。main は公開の途中で止めない
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 # Action はタグの付け替えに影響されないようコミット SHA で固定する（公開から7日以上たった版）
 jobs:
@@ -30,3 +31,24 @@ jobs:
       - run: npm test
       - run: npm run sim
       - run: npm run build
+      # 公開するファイルを次のジョブへ渡す（main への push のときだけ）
+      - if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: dist
+
+  # GitHub Pages へ公開する。検査が全部通った main だけ。
+  # 書き込み権限はこのジョブだけに付ける。ここではリポジトリを取り出さず、依存のコードも動かさない
+  deploy:
+    needs: verify
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1

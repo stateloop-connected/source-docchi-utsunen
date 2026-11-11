@@ -34,7 +34,7 @@
 | `src/app/storage.ts` | localStorage（ハイスコア、音の設定、ネタのショップのジェムと気持ち課金額） |
 | `tests/` | 単体テスト。`reference/golden.json` を直接読んで比べる |
 | `compose.yaml` | 開発・テスト・検証・ビルドを Docker で動かす設定 |
-| `.github/workflows/ci.yml` | push と pull request で型検査・テスト・バランス検証・ビルドを行う |
+| `.github/workflows/ci.yml` | push と pull request で型検査・テスト・バランス検証・ビルドを行う。`main` への push では、通ったあとに `dist/` を GitHub Pages へ公開する |
 
 依存の向きは `app` → `render`・`audio`・`bots` → `core` の一方向です。`core` はほかのどこも読みません。
 
