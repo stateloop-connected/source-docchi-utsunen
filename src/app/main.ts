@@ -20,6 +20,7 @@ import {
   titleButtons,
   type ResultStats,
 } from './screens.ts';
+import { reviewPlay } from './review.ts';
 import { Session } from './session.ts';
 import { loadHighScore, loadSound, saveHighScore, saveSound } from './storage.ts';
 import { drawButton, hitButton, type Button } from './ui.ts';
@@ -56,6 +57,7 @@ class App {
   private demoPanicked = false;
   private closePressedAt = -10;
   private result: ResultStats | null = null;
+  private resultAt = 0;
   private message: { label: string; until: number } | null = null;
 
   constructor(canvas: HTMLCanvasElement) {
@@ -132,7 +134,9 @@ class App {
       this.highScore = score;
       saveHighScore(score);
     }
-    this.result = { score, highScore: this.highScore, newRecord, wave: waveOf(s.t), weapon: weaponName(s.player.rank), iq: estimatedIq(score) };
+    const review = reviewPlay(s, this.session.blockShare, this.session.nearMisses);
+    this.result = { score, highScore: this.highScore, newRecord, wave: waveOf(s.t), weapon: weaponName(s.player.rank), iq: estimatedIq(score), review };
+    this.resultAt = this.time;
     this.mode = 'result';
     this.focus = -1;
   }
@@ -308,7 +312,22 @@ class App {
     const { state, view } = this.session;
     drawScene(ctx, state, view);
     drawHud(ctx, state, view, { demo: this.mode === 'title' });
+    const drawButtons = (): void => {
+      const closeAge = this.time - this.closePressedAt;
+      this.buttons().forEach((b, i) => {
+        // 「今すぐプレイ」は脈打って光の帯が横切り、「✕」は押すと震える
+        const play = b.id === 'play';
+        drawButton(ctx, b, {
+          focused: i === this.focus,
+          scale: play ? 1 + 0.05 * Math.sin(this.time * 7) : 1,
+          dx: b.id === 'close' && closeAge < 0.4 ? Math.sin(closeAge * 80) * 4 : 0,
+          shine: play ? (this.time * 0.6) % 1.6 : -1,
+        });
+      });
+    };
     if (this.mode === 'title') {
+      // タイトルの飾り（つつく手）はボタンの上に重ねる
+      drawButtons();
       drawTitle(ctx, {
         time: this.time,
         highScore: this.highScore,
@@ -316,18 +335,14 @@ class App {
         failAge: state.over ? this.overAge : -1,
         closeAge: this.time - this.closePressedAt,
       });
-    } else if (this.mode === 'paused') {
+      return;
+    }
+    if (this.mode === 'paused') {
       drawPause(ctx);
     } else if (this.mode === 'result' && this.result) {
-      drawResult(ctx, this.result, this.message && this.time < this.message.until ? this.message.label : null);
+      drawResult(ctx, this.result, this.message && this.time < this.message.until ? this.message.label : null, this.time - this.resultAt);
     }
-    this.buttons().forEach((b, i) => {
-      // 「今すぐプレイ」は脈打ち、「✕」は押すと震える
-      const pulse = b.id === 'play' ? 1 + 0.05 * Math.sin(this.time * 7) : 1;
-      const closeAge = this.time - this.closePressedAt;
-      const dx = b.id === 'close' && closeAge < 0.4 ? Math.sin(closeAge * 80) * 4 : 0;
-      drawButton(ctx, b, i === this.focus, pulse, dx);
-    });
+    drawButtons();
   }
 
   private frame(now: number): void {

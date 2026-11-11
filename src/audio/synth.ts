@@ -213,6 +213,13 @@ export class Synth implements Sfx {
     this.tone('triangle', 330, 41, 1.4, 0.2, 0.05);
   }
 
+  /** 「ギリギリ！」「持ち直した！」に添える、短く明るい 2 音 */
+  praise(): void {
+    if (!this.ready) return;
+    this.tone('triangle', 988, 988, 0.08, 0.13);
+    this.tone('triangle', 1319, 1319, 0.14, 0.13, 0.08);
+  }
+
   click(): void {
     if (!this.ready) return;
     this.tone('triangle', 660, 880, 0.06, 0.12);

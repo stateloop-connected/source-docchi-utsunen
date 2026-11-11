@@ -96,3 +96,61 @@ export function clamp(v: number, lo: number, hi: number): number {
 export function lerp(a: number, b: number, t: number): number {
   return a + (b - a) * t;
 }
+
+/** 絵全体で共通の輪郭の色 */
+export const INK = '#1b1f2e';
+
+export function gradV(ctx: Ctx, y0: number, y1: number, top: string, bottom: string): CanvasGradient {
+  const g = ctx.createLinearGradient(0, y0, 0, y1);
+  g.addColorStop(0, top);
+  g.addColorStop(1, bottom);
+  return g;
+}
+
+export interface FancyStyle {
+  size: number;
+  /** 文字の塗り。上から下へのグラデーション */
+  top: string;
+  bottom: string;
+  stroke?: string;
+  strokeWidth?: number;
+  /** 下にずらして敷く影の量。0 で影なし */
+  shadow?: number;
+  align?: CanvasTextAlign;
+  maxWidth?: number;
+}
+
+/** 広告風の太い文字。影、縁取り、グラデーションの順に重ねる */
+export function fancyText(ctx: Ctx, str: string, x: number, y: number, st: FancyStyle): void {
+  let size = st.size;
+  ctx.font = font(size, 900);
+  if (st.maxWidth !== undefined) {
+    const w = ctx.measureText(str).width;
+    if (w > st.maxWidth) {
+      size = (size * st.maxWidth) / w;
+      ctx.font = font(size, 900);
+    }
+  }
+  ctx.textAlign = st.align ?? 'center';
+  ctx.textBaseline = 'middle';
+  ctx.lineJoin = 'round';
+  const stroke = st.stroke ?? INK;
+  const sw = st.strokeWidth ?? Math.max(3, size * 0.2);
+  const shadow = st.shadow ?? size * 0.09;
+  if (shadow > 0) {
+    ctx.lineWidth = sw;
+    ctx.strokeStyle = stroke;
+    ctx.strokeText(str, x, y + shadow);
+  }
+  ctx.lineWidth = sw;
+  ctx.strokeStyle = stroke;
+  ctx.strokeText(str, x, y);
+  ctx.fillStyle = gradV(ctx, y - size * 0.5, y + size * 0.5, st.top, st.bottom);
+  ctx.fillText(str, x, y);
+}
+
+/** 太字で描いたときの文字の幅 */
+export function textWidth(ctx: Ctx, str: string, size: number): number {
+  ctx.font = font(size, 900);
+  return ctx.measureText(str).width;
+}

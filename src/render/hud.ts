@@ -1,10 +1,11 @@
 // プレイ中の表示類（仕様書 6.7 節）と、画面中央に出る演出の文字。
 import { B, RUSH_START } from '../core/balance.ts';
-import { bossName, dpsOf, waveOf, weaponName } from '../core/formulas.ts';
+import { bossName, dpsOf, waveOf, weaponName, weaponStage } from '../core/formulas.ts';
 import type { GameState } from '../core/state.ts';
-import { clamp, fillRoundRect, text, type Ctx } from './draw.ts';
+import { INK, circle, clamp, fancyText, fillRoundRect, gradV, roundRect, text, textWidth, type Ctx } from './draw.ts';
 import { formatComma, formatNumber } from './format.ts';
-import { H, W } from './projection.ts';
+import { W } from './projection.ts';
+import { drawSpriteCentered } from './sprites.ts';
 import { LOOK, type View } from './view.ts';
 
 /** 埋まり度がこの割合以上でゲージが赤く点滅する */
@@ -17,58 +18,106 @@ export interface HudOptions {
   demo: boolean;
 }
 
+/** 輪郭つきの角丸を、縦のグラデーションで塗る */
+function plate(ctx: Ctx, x: number, y: number, w: number, h: number, r: number, top: string, bottom: string): void {
+  fillRoundRect(ctx, x - 2.5, y - 2.5, w + 5, h + 5, r + 2.5, INK);
+  roundRect(ctx, x, y, w, h, r);
+  ctx.fillStyle = gradV(ctx, y, y + h, top, bottom);
+  ctx.fill();
+}
+
 function drawGauge(ctx: Ctx, s: GameState, v: View, width: number): void {
   const x = 20;
   const y = 16;
   const h = 24;
   const ratio = clamp(s.fill / s.capacity, 0, 1);
-  fillRoundRect(ctx, x - 3, y - 3, width + 6, h + 6, 9, 'rgba(0,0,0,0.55)');
+  plate(ctx, x, y, width, h, 12, '#232838', '#3a4157');
   const danger = ratio >= DANGER_RATIO;
   // 点滅は毎秒 2.5 回（1 秒に 3 回を超えない）
   const blink = danger && Math.sin(v.time * Math.PI * 5) > 0;
-  const color = danger ? (blink ? '#ff2d2d' : '#b81414') : ratio >= 0.45 ? '#ffb020' : '#35c96b';
-  if (ratio > 0) fillRoundRect(ctx, x, y, Math.max(h, width * ratio), h, 6, color);
-  ctx.fillStyle = 'rgba(255,255,255,0.35)';
-  ctx.fillRect(x + width * DANGER_RATIO, y, 2, h);
-  text(ctx, `埋まり度 ${Math.floor(ratio * 100)}%`, x + width / 2, y + h / 2 + 1, { size: 16, weight: 900, stroke: 'rgba(0,0,0,0.7)', strokeWidth: 3 });
+  const [top, bottom] = danger ? (blink ? ['#ff8a8a', '#ff1f1f'] : ['#e05252', '#a81414']) : ratio >= 0.45 ? ['#ffe08a', '#ff9d1a'] : ['#9ff5a8', '#27b85a'];
+  if (ratio > 0) {
+    const fw = Math.max(h, width * ratio);
+    ctx.save();
+    roundRect(ctx, x, y, fw, h, 12);
+    ctx.clip();
+    ctx.fillStyle = gradV(ctx, y, y + h, top!, bottom!);
+    ctx.fillRect(x, y, fw, h);
+    // 流れる縞と、上側のつや
+    ctx.fillStyle = 'rgba(255,255,255,0.16)';
+    const shift = (v.time * 30) % 28;
+    for (let sx = x - 28 + shift; sx < x + fw; sx += 28) {
+      ctx.beginPath();
+      ctx.moveTo(sx, y + h);
+      ctx.lineTo(sx + 12, y + h);
+      ctx.lineTo(sx + 24, y);
+      ctx.lineTo(sx + 12, y);
+      ctx.closePath();
+      ctx.fill();
+    }
+    ctx.fillStyle = 'rgba(255,255,255,0.3)';
+    ctx.fillRect(x, y + 2, fw, 6);
+    ctx.restore();
+  }
+  // 危険域の目印
+  const mx = x + width * DANGER_RATIO;
+  ctx.fillStyle = 'rgba(255,255,255,0.55)';
+  ctx.fillRect(mx - 1, y, 2, h);
+  ctx.beginPath();
+  ctx.moveTo(mx - 5, y - 3);
+  ctx.lineTo(mx + 5, y - 3);
+  ctx.lineTo(mx, y + 4);
+  ctx.closePath();
+  ctx.fillStyle = '#ff5c5c';
+  ctx.fill();
+  fancyText(ctx, `埋まり度 ${Math.floor(ratio * 100)}%`, x + width / 2, y + h / 2 + 1, { size: 16, top: '#ffffff', bottom: '#e8eefc', strokeWidth: 4, shadow: 0 });
 }
 
 function drawWave(ctx: Ctx, s: GameState, x: number): void {
   const wave = waveOf(s.t);
   const tau = s.t % B.waveLength;
   const bossWave = wave % B.bossEvery === 0;
-  text(ctx, `WAVE ${wave}`, x, 64, { size: 24, weight: 900, align: 'left', stroke: 'rgba(0,0,0,0.6)' });
+  const rush = tau >= RUSH_START;
+  text(ctx, 'WAVE', x, 58, { size: 13, weight: 900, align: 'left', color: '#cfe0ff', stroke: INK, strokeWidth: 3 });
+  // WAVE が変わった直後は数字が弾む
+  const pop = tau < 0.3 ? 1 + (1 - tau / 0.3) * 0.5 : 1;
+  fancyText(ctx, String(wave), x + 46, 63, { size: 30 * pop, top: '#ffffff', bottom: rush ? '#ffb0b0' : '#bcd7ff', align: 'left' });
   // 20 秒の進行バー。凪とラッシュ（ボス戦ならボス）を色で分ける
   const bx = x;
-  const by = 80;
+  const by = 82;
   const bw = 150;
+  const bh = 9;
   const calm = (bw * RUSH_START) / B.waveLength;
-  fillRoundRect(ctx, bx - 2, by - 2, bw + 4, 12, 6, 'rgba(0,0,0,0.55)');
-  ctx.fillStyle = '#3f6fb0';
-  ctx.fillRect(bx, by, calm, 8);
-  ctx.fillStyle = bossWave ? '#7a3fb0' : '#b03f3f';
-  ctx.fillRect(bx + calm, by, bw - calm, 8);
+  fillRoundRect(ctx, bx - 2.5, by - 2.5, bw + 5, bh + 5, 7, INK);
+  ctx.save();
+  roundRect(ctx, bx, by, bw, bh, 4.5);
+  ctx.clip();
+  ctx.fillStyle = '#2b4470';
+  ctx.fillRect(bx, by, calm, bh);
+  ctx.fillStyle = bossWave ? '#5a2d85' : '#7a2a2a';
+  ctx.fillRect(bx + calm, by, bw - calm, bh);
   const p = (bw * tau) / B.waveLength;
-  ctx.fillStyle = '#8fc0ff';
-  ctx.fillRect(bx, by, Math.min(p, calm), 8);
+  ctx.fillStyle = gradV(ctx, by, by + bh, '#bfe0ff', '#5aa2ff');
+  ctx.fillRect(bx, by, Math.min(p, calm), bh);
   if (p > calm) {
-    ctx.fillStyle = bossWave ? '#c98bff' : '#ff7a7a';
-    ctx.fillRect(bx + calm, by, p - calm, 8);
+    ctx.fillStyle = bossWave ? gradV(ctx, by, by + bh, '#e6c4ff', '#b05cff') : gradV(ctx, by, by + bh, '#ffb3b3', '#ff4d4d');
+    ctx.fillRect(bx + calm, by, p - calm, bh);
   }
-  ctx.fillStyle = '#fff';
-  ctx.fillRect(bx + p - 1, by - 2, 2, 12);
+  ctx.restore();
+  circle(ctx, bx + p, by + bh / 2, 6.5, INK);
+  circle(ctx, bx + p, by + bh / 2, 4.5, rush ? '#ffe066' : '#ffffff');
 }
 
 function drawCenterTop(ctx: Ctx, s: GameState, v: View, y: number, small: boolean): void {
-  const size = small ? 26 : 40;
+  const size = small ? 26 : 42;
   if (v.warning) {
     // 点滅は毎秒 2.5 回
     if (Math.sin(v.time * Math.PI * 5) > -0.2) {
       if (v.warning.boss) {
-        text(ctx, 'WARNING', W / 2, y, { size, weight: 900, color: '#ffd23f', stroke: '#5a0000' });
-        text(ctx, v.warning.name, W / 2, y + size * 0.9, { size: size * 0.62, weight: 900, color: '#fff', stroke: '#5a0000', maxWidth: 440 });
+        fancyText(ctx, 'WARNING', W / 2, y, { size, top: '#fff3a0', bottom: '#ff9d1a', stroke: '#4a0a0a' });
+        fancyText(ctx, v.warning.name, W / 2, y + size * 0.92, { size: size * 0.62, top: '#ffffff', bottom: '#ffd0d0', stroke: '#4a0a0a', maxWidth: 440 });
       } else {
-        text(ctx, 'RUSH!', W / 2, y, { size: size * 1.15, weight: 900, color: '#ff5c5c', stroke: '#fff', strokeWidth: 5 });
+        fancyText(ctx, 'RUSH!', W / 2, y, { size: size * 1.2, top: '#ffb0b0', bottom: '#ff1f1f', stroke: '#ffffff', strokeWidth: size * 0.16 });
       }
     }
     return;
@@ -77,10 +126,15 @@ function drawCenterTop(ctx: Ctx, s: GameState, v: View, y: number, small: boolea
   for (let i = s.head; i < s.enemies.length; i++) {
     const e = s.enemies[i]!;
     if (e.kind !== 'boss') continue;
-    text(ctx, bossName(e.bossIndex), W / 2, y - 6, { size: small ? 18 : 24, weight: 900, stroke: '#3b0a0a', maxWidth: 400 });
+    fancyText(ctx, bossName(e.bossIndex), W / 2, y - 8, { size: small ? 18 : 25, top: '#ffffff', bottom: '#ffd0d0', stroke: '#4a0a0a', maxWidth: 400 });
     const bw = small ? 220 : 300;
-    fillRoundRect(ctx, W / 2 - bw / 2 - 2, y + 12, bw + 4, 14, 7, 'rgba(0,0,0,0.6)');
-    fillRoundRect(ctx, W / 2 - bw / 2, y + 14, bw * clamp(e.hp / e.hp0, 0, 1), 10, 5, '#ff4d4d');
+    const ratio = clamp(e.hp / e.hp0, 0, 1);
+    plate(ctx, W / 2 - bw / 2, y + 12, bw, 12, 6, '#232838', '#3a4157');
+    if (ratio > 0) {
+      roundRect(ctx, W / 2 - bw / 2, y + 12, bw * ratio, 12, 6);
+      ctx.fillStyle = gradV(ctx, y + 12, y + 24, '#ff9a9a', '#e01f1f');
+      ctx.fill();
+    }
     return;
   }
 }
@@ -89,9 +143,13 @@ function drawToasts(ctx: Ctx, v: View): void {
   for (const t of v.toasts) {
     const age = v.time - t.start;
     // 出るときに少し大きく弾み、終わりに薄れる
-    const pop = age < 0.12 ? 0.6 + (age / 0.12) * 0.55 : age < 0.2 ? 1.15 - ((age - 0.12) / 0.08) * 0.15 : 1;
+    const pop = age < 0.12 ? 0.6 + (age / 0.12) * 0.6 : age < 0.2 ? 1.2 - ((age - 0.12) / 0.08) * 0.2 : 1;
     ctx.globalAlpha = clamp((t.life - age) / 0.25, 0, 1);
-    text(ctx, t.label, t.x, t.y - age * 14, { size: t.size * pop, weight: 900, color: t.color, stroke: 'rgba(20,20,30,0.9)', maxWidth: 500 });
+    ctx.save();
+    ctx.translate(t.x, t.y - age * 14);
+    ctx.rotate(-0.04);
+    fancyText(ctx, t.label, 0, 0, { size: t.size * pop, top: t.tone[0], bottom: t.tone[1], maxWidth: 500 });
+    ctx.restore();
   }
   ctx.globalAlpha = 1;
 }
@@ -101,40 +159,72 @@ function drawBossIntro(ctx: Ctx, v: View): void {
   const age = v.time - v.bossIntro.start;
   const a = clamp(Math.min(age / 0.15, (LOOK.bossIntroTime - age) / 0.3), 0, 1);
   ctx.globalAlpha = a;
-  ctx.fillStyle = 'rgba(20,0,0,0.78)';
+  ctx.fillStyle = gradV(ctx, 380, 570, 'rgba(60,0,0,0.86)', 'rgba(10,0,0,0.86)');
   ctx.fillRect(0, 380, W, 190);
-  ctx.fillStyle = '#ffd23f';
-  ctx.fillRect(0, 380, W, 6);
-  ctx.fillRect(0, 564, W, 6);
+  // 上下の帯を警戒色の縞にして流す
+  for (const y of [374, 564]) {
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(0, y, W, 12);
+    ctx.clip();
+    ctx.fillStyle = '#ffd23f';
+    ctx.fillRect(0, y, W, 12);
+    ctx.fillStyle = INK;
+    const shift = (v.time * 60) % 30;
+    for (let x = -30 + shift; x < W + 30; x += 30) {
+      ctx.beginPath();
+      ctx.moveTo(x, y + 12);
+      ctx.lineTo(x + 12, y + 12);
+      ctx.lineTo(x + 24, y);
+      ctx.lineTo(x + 12, y);
+      ctx.closePath();
+      ctx.fill();
+    }
+    ctx.restore();
+  }
   const slide = (1 - clamp(age / 0.2, 0, 1)) * 200;
-  text(ctx, 'BOSS', W / 2 - slide, 420, { size: 26, weight: 900, color: '#ffd23f' });
-  text(ctx, v.bossIntro.name, W / 2 + slide, 492, { size: 84, weight: 900, color: '#fff', stroke: '#c92a2a', strokeWidth: 8, maxWidth: 510 });
+  fancyText(ctx, 'BOSS', W / 2 - slide, 422, { size: 28, top: '#fff3a0', bottom: '#ff9d1a' });
+  fancyText(ctx, v.bossIntro.name, W / 2 + slide, 494, { size: 84, top: '#ffffff', bottom: '#ffb0b0', stroke: '#b01212', strokeWidth: 10, maxWidth: 500 });
   ctx.globalAlpha = 1;
 }
 
 function drawGuide(ctx: Ctx, s: GameState): void {
   if (s.t >= GUIDE_SECONDS) return;
   ctx.globalAlpha = clamp(GUIDE_SECONDS - s.t, 0, 1);
-  fillRoundRect(ctx, 60, 470, 420, 84, 16, 'rgba(0,0,0,0.5)');
-  text(ctx, '← 敵 ｜ 強化 →', W / 2, 498, { size: 30, weight: 900 });
-  text(ctx, 'タップで移動', W / 2, 534, { size: 19, weight: 700, color: '#dfe6f3' });
+  fillRoundRect(ctx, 58, 468, 424, 88, 20, 'rgba(10,14,30,0.62)');
+  fancyText(ctx, '← 敵 ｜ 強化 →', W / 2, 498, { size: 32, top: '#ffffff', bottom: '#cfe6ff' });
+  text(ctx, 'タップで移動', W / 2, 536, { size: 19, weight: 800, color: '#e8eefc' });
   ctx.globalAlpha = 1;
+}
+
+function drawWeaponBar(ctx: Ctx, s: GameState): void {
+  const rank = s.player.rank;
+  plate(ctx, 12, 910, W - 24, 42, 14, '#3a4157', '#1e2230');
+  ctx.fillStyle = 'rgba(255,255,255,0.08)';
+  ctx.fillRect(18, 913, W - 36, 8);
+  circle(ctx, 40, 931, 19, INK);
+  circle(ctx, 40, 931, 16.5, '#4d5874');
+  drawSpriteCentered(ctx, `weapon.${weaponStage(rank)}`, 40, 931, 0.42, 0.5);
+  fancyText(ctx, weaponName(rank), 66, 932, { size: 21, top: '#ffffff', bottom: '#cfe6ff', align: 'left', maxWidth: 230, shadow: 0, strokeWidth: 4 });
+  // ランクの札
+  const lv = `Lv.${rank}`;
+  const lx = 66 + Math.min(230, textWidth(ctx, weaponName(rank), 21)) + 10;
+  fillRoundRect(ctx, lx, 921, 58, 22, 11, '#ffd23f');
+  text(ctx, lv, lx + 29, 932.5, { size: 14, weight: 900, color: INK, maxWidth: 50 });
+  fancyText(ctx, `DPS ${formatNumber(dpsOf(rank))}`, W - 26, 932, { size: 20, top: '#fff7a8', bottom: '#ffb400', align: 'right', shadow: 0, strokeWidth: 4 });
 }
 
 export function drawHud(ctx: Ctx, s: GameState, v: View, o: HudOptions): void {
   drawGauge(ctx, s, v, o.demo ? 460 : 500);
   drawWave(ctx, s, o.demo ? 20 : 66);
-  text(ctx, formatComma(s.score), W - 20, 64, { size: 26, weight: 900, align: 'right', stroke: 'rgba(0,0,0,0.6)' });
-  const weapon = `${weaponName(s.player.rank)} Lv.${s.player.rank}`;
-  const dps = `DPS ${formatNumber(dpsOf(s.player.rank))}`;
+  fancyText(ctx, formatComma(s.score), W - 20, 62, { size: 28, top: '#ffffff', bottom: '#ffe9a8', align: 'right' });
   if (o.demo) {
-    text(ctx, `${weapon}　${dps}`, W - 20, 90, { size: 15, weight: 800, align: 'right', stroke: 'rgba(0,0,0,0.6)', strokeWidth: 3 });
+    const line = `${weaponName(s.player.rank)} Lv.${s.player.rank}　DPS ${formatNumber(dpsOf(s.player.rank))}`;
+    text(ctx, line, W - 20, 90, { size: 15, weight: 900, align: 'right', stroke: INK, strokeWidth: 3.5 });
     drawCenterTop(ctx, s, v, 176, true);
   } else {
-    text(ctx, 'スコア', W - 20, 88, { size: 12, weight: 700, align: 'right', color: '#dfe6f3', stroke: 'rgba(0,0,0,0.6)', strokeWidth: 3 });
-    fillRoundRect(ctx, 10, 908, W - 20, 44, 12, 'rgba(0,0,0,0.5)');
-    text(ctx, weapon, 24, H - 29, { size: 22, weight: 900, align: 'left', maxWidth: 320 });
-    text(ctx, dps, W - 24, H - 29, { size: 20, weight: 900, align: 'right', color: '#ffe066' });
+    text(ctx, 'スコア', W - 20, 88, { size: 12, weight: 900, align: 'right', color: '#e8eefc', stroke: INK, strokeWidth: 3 });
+    drawWeaponBar(ctx, s);
     drawCenterTop(ctx, s, v, 150, false);
     drawGuide(ctx, s);
   }
