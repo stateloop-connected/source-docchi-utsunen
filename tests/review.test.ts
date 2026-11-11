@@ -14,11 +14,11 @@ describe('リザルトの称号とひとこと', () => {
     expect(reviewPlay(s, 0.5, 0)).toMatchObject({ taken: 11, offered: 15, doubles: 4 });
   });
 
-  it('強化の帯に寄せすぎると「欲張りさん」、敵ばかりだと「慎重派」', () => {
+  it('強化の帯に寄せすぎると「意識高い系」、敵ばかりだと「自転車操業」', () => {
     const s = createGame(1);
-    expect(reviewPlay(s, 0.8, 0).title).toBe('欲張りさん');
+    expect(reviewPlay(s, 0.8, 0).title).toBe('意識高い系');
     expect(reviewPlay(s, 0.8, 0).hint).toContain('寄せすぎ');
-    expect(reviewPlay(s, 0.2, 0).title).toBe('慎重派');
+    expect(reviewPlay(s, 0.2, 0).title).toBe('自転車操業');
     expect(reviewPlay(s, 0.2, 0).hint).toContain('凪');
   });
 
@@ -28,7 +28,7 @@ describe('リザルトの称号とひとこと', () => {
     expect(reviewPlay(trap, 0.8, 0).title).toBe('無料に弱い人');
     const hat = createGame(1);
     hat.player.hats = 3;
-    expect(reviewPlay(hat, 0.5, 0).title).toBe('帽子コレクター');
+    expect(reviewPlay(hat, 0.5, 0).title).toBe('形から入るタイプ');
     const boss = createGame(1);
     boss.bossesKilled = 3;
     expect(reviewPlay(boss, 0.5, 0).title).toBe('ボスキラー');
@@ -37,13 +37,13 @@ describe('リザルトの称号とひとこと', () => {
     expect(reviewPlay(pair, 0.8, 0).title).toBe('両取り名人');
   });
 
-  it('ランクアップをほぼ取り切ると「強化の鬼」、どれでもなければ「バランス型」', () => {
+  it('ランクアップをほぼ取り切ると「資格マニア」、どれでもなければ「頼れる中堅」', () => {
     const s = createGame(1);
     s.got.rank = 9;
     s.missed.rank = 1;
-    expect(reviewPlay(s, 0.5, 0).title).toBe('強化の鬼');
+    expect(reviewPlay(s, 0.5, 0).title).toBe('資格マニア');
     s.missed.rank = 6;
-    expect(reviewPlay(s, 0.5, 0).title).toBe('バランス型');
+    expect(reviewPlay(s, 0.5, 0).title).toBe('頼れる中堅');
   });
 
   it('ひとことは、惜しい取り逃し・罠・ボムの見送りの順に触れる', () => {
@@ -75,11 +75,11 @@ describe('会心の振り返り', () => {
     s.critTicks = 60 * 12;
     expect(reviewPlay(s, 0.5, 0).title).toBe('狙撃手');
     s.critTicks = 60 * 12 - 1;
-    expect(reviewPlay(s, 0.5, 0).title).toBe('バランス型');
+    expect(reviewPlay(s, 0.5, 0).title).toBe('頼れる中堅');
     // 当てた時間が短いうちは、たまたまの会心で称号を出さない
     s.hitTicks = 60 * 20 - 1;
     s.critTicks = s.hitTicks;
-    expect(reviewPlay(s, 0.5, 0).title).toBe('バランス型');
+    expect(reviewPlay(s, 0.5, 0).title).toBe('頼れる中堅');
   });
 
   it('会心が 3 割以下なら、ひとことで会心を教える', () => {

@@ -43,13 +43,13 @@ P = dict(
     TPS=60,                       # 1秒あたりの刻み数
     D0=40.0, G=1.2,
     R_REF=0.44 / 3,               # 4/30 + 2/150 [rank/s]
-    PHI0=0.30, KAPPA=0.0045,
+    PHI0=0.30, KAPPA=0.0052,
     S0=3.0, S_SLOPE=0.02, S_MAX=8.0,
     CAP=100.0,
     WAVE=20.0, RUSH_LEN=5.0, RUSH_MULT=2.0,
     BOSS_EVERY=5, BOSS_COEF=7.0, BOSS_SIZE=20.0,
     BLOCK_FIRST=3.0, BLOCK_INTERVAL=5.0, BLOCK_TRAVEL=10.0,
-    COST=dict(rank=3.5, gold=7.0, buddy=4.0, bomb=1.5, vacation=2.0, expand=2.5, trap=0.7, hat=1.5),
+    COST=dict(rank=3.5, gold=5.0, buddy=4.0, bomb=1.5, vacation=2.0, expand=2.5, trap=0.7, hat=1.5),
     GOLD_RANKS=2, BUDDY_DPS=0.10, BUDDY_MAX=3,
     BOMB_SIZE=35.0, BOMB_BOSS=0.15,
     VACATION=6.0, EXPAND=10.0, EXPAND_MAX=3, TRAP_COUNT=8,
@@ -450,9 +450,10 @@ if __name__ == "__main__":
                     if k == "COST": p["COST"].update(v)
                     else: p[k] = v
                 return p
-            for label, kw in [("確定値", {}), ("KAPPA=0.004", dict(KAPPA=0.004)), ("KAPPA=0.005", dict(KAPPA=0.005)),
+            for label, kw in [("確定値", {}), ("KAPPA=0.0047", dict(KAPPA=0.0047)), ("KAPPA=0.0057", dict(KAPPA=0.0057)),
                               ("PHI0=0.27", dict(PHI0=0.27)), ("PHI0=0.33", dict(PHI0=0.33)),
                               ("rank=3.0", dict(COST=dict(rank=3.0))), ("rank=4.0", dict(COST=dict(rank=4.0))),
+                              ("gold=4.0", dict(COST=dict(gold=4.0))), ("gold=7.0", dict(COST=dict(gold=7.0))),
                               ("CAP=80", dict(CAP=80.0)), ("CAP=120", dict(CAP=120.0)),
                               ("MOVE_SPEED=2.4", dict(MOVE_SPEED=2.4)), ("MOVE_SPEED=3.6", dict(MOVE_SPEED=3.6)),
                               ("BEAM_HALF=0.04", dict(BEAM_HALF=0.04)), ("BEAM_HALF=0.09", dict(BEAM_HALF=0.09)),

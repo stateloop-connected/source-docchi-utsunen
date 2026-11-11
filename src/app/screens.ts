@@ -262,7 +262,7 @@ export function drawResult(ctx: Ctx, r: ResultStats, message: string | null, age
   ctx.restore();
   ctx.globalAlpha = 1;
 
-  text(ctx, `所持ジェム ${GEM}${formatComma(gems)}`, W / 2, 922, { size: 14, weight: 800, color: '#cfe6ff' });
+  text(ctx, `手持ちの${GEM}${formatComma(gems)}`, W / 2, 922, { size: 14, weight: 800, color: '#cfe6ff' });
   if (message) fancyText(ctx, message, W / 2, 944, { size: 18, top: '#fff7a8', bottom: '#ffd23f', maxWidth: 500, shadow: 0, strokeWidth: 4 });
 
   // ハイスコアを更新したら、紙吹雪を降らせる

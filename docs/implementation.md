@@ -32,7 +32,7 @@
 | `src/app/review.ts` | リザルトの称号とひとことの判定（仕様書 6.6 節） |
 | `src/app/shop.ts` | ネタのショップの中身（パック、画面、ボタン配置。仕様書 6.10 節） |
 | `src/app/ui.ts` | キャンバス上のボタン（当たり判定と描画） |
-| `src/app/storage.ts` | localStorage（ハイスコア、音の設定、ネタのショップのジェムと気持ち課金額） |
+| `src/app/storage.ts` | localStorage（ハイスコア、音の設定、ネタのショップの「やる気」と気持ち課金額） |
 | `tests/` | 単体テスト。`reference/golden.json` を直接読んで比べる |
 | `compose.yaml` | 開発・テスト・検証・ビルドを Docker で動かす設定 |
 | `.github/workflows/ci.yml` | push と pull request で型検査・テスト・バランス検証・ビルドを行う。`main` への push では、通ったあとに `dist/` を GitHub Pages へ公開する |

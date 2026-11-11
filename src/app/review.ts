@@ -51,15 +51,15 @@ export function reviewPlay(s: GameState, blockShare: number, nearMisses: number)
   const critRate = s.hitTicks > 0 ? s.critTicks / s.hitTicks : 0;
   const aimed = s.hitTicks * DT >= REVIEW.sniperSeconds;
 
-  let title = 'バランス型';
+  let title = '頼れる中堅';
   if (s.got.trap >= REVIEW.traps) title = '無料に弱い人';
-  else if (s.player.hats >= REVIEW.hats) title = '帽子コレクター';
+  else if (s.player.hats >= REVIEW.hats) title = '形から入るタイプ';
   else if (s.bossesKilled >= REVIEW.bosses) title = 'ボスキラー';
   else if (s.doubles >= REVIEW.doubles) title = '両取り名人';
   else if (aimed && critRate >= REVIEW.sniperRate) title = '狙撃手';
-  else if (blockShare >= REVIEW.greedy) title = '欲張りさん';
-  else if (blockShare <= REVIEW.timid) title = '慎重派';
-  else if (offered >= REVIEW.collectorOffered && taken / offered >= REVIEW.collectorRatio) title = '強化の鬼';
+  else if (blockShare >= REVIEW.greedy) title = '意識高い系';
+  else if (blockShare <= REVIEW.timid) title = '自転車操業';
+  else if (offered >= REVIEW.collectorOffered && taken / offered >= REVIEW.collectorRatio) title = '資格マニア';
 
   let hint = 'いい勝負。ラッシュの前に真ん中へ戻れると、さらに伸びる';
   if (blockShare >= REVIEW.greedy) hint = '強化に寄せすぎて敵があふれた。埋まり度が半分を超えたら戻ろう';

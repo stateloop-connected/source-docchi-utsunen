@@ -1,7 +1,7 @@
 // ネタのショップ（仕様書 6.10 節）。それらしく見えるだけの、偽の課金機能。
 // 本物の決済はなく、入力欄もなく、外部との通信もしない。「購入」しても請求は 0 円で、
-// ジェムを持っていてもゲームの強さは変わらない。
-import { INK, circle, clamp, fancyText, fillRoundRect, gradV, poly, roundRect, text, type Ctx } from '../render/draw.ts';
+// 売っているのは「やる気」。持っていてもゲームの強さは変わらない（コードの中では gems と呼んでいる）。
+import { INK, circle, clamp, fancyText, fillRoundRect, gradV, roundRect, text, type Ctx } from '../render/draw.ts';
 import { formatComma } from '../render/format.ts';
 import { H, W } from '../render/projection.ts';
 import type { Button } from './ui.ts';
@@ -18,10 +18,10 @@ export const PACKS: readonly Pack[] = [
   { name: 'ひとつかみ', gems: 60, yen: 120, badge: '' },
   { name: 'お得パック', gems: 500, yen: 980, badge: '人気 No.1' },
   { name: '社会人パック', gems: 2400, yen: 4900, badge: '80% お得' },
-  { name: '石油王パック', gems: 99999, yen: 120000, badge: 'ボーナスの使い道' },
+  { name: '石油王パック', gems: 99999, yen: 120000, badge: '燃え尽き注意' },
 ];
 
-/** コンティニューに使うジェムの数 */
+/** コンティニューに使う「やる気」の数 */
 export const CONTINUE_COST = 5;
 /** 「決済中」を見せる時間（秒） */
 export const PAYING_SECONDS = 1.3;
@@ -35,8 +35,8 @@ export type ShopStep =
   | { at: 'paying'; pack: number; since: number }
   | { at: 'done'; pack: number };
 
-/** ジェムを表す記号 */
-export const GEM = '◆';
+/** ショップで売っているものの名前。数の前に付けて「やる気 60」のように出す */
+export const GEM = 'やる気 ';
 const ROW_Y = 322;
 const ROW_H = 82;
 
@@ -55,18 +55,29 @@ export function shopButtons(step: ShopStep): Button[] {
   return buttons;
 }
 
+/** 「やる気」の絵。炎 */
 function drawGem(ctx: Ctx, x: number, y: number, s: number): void {
-  poly(ctx, [x, y - s * 1.15, x + s, y - s * 0.2, x, y + s * 1.15, x - s, y - s * 0.2], INK);
-  const r = s * 0.82;
-  ctx.beginPath();
-  ctx.moveTo(x, y - r * 1.15);
-  ctx.lineTo(x + r, y - r * 0.2);
-  ctx.lineTo(x, y + r * 1.15);
-  ctx.lineTo(x - r, y - r * 0.2);
-  ctx.closePath();
-  ctx.fillStyle = gradV(ctx, y - r * 1.15, y + r * 1.15, '#b8f4ff', '#2a9df4');
+  const flame = (k: number): void => {
+    ctx.beginPath();
+    ctx.moveTo(x, y - s * 1.25 * k);
+    ctx.bezierCurveTo(x + s * 0.2 * k, y - s * 0.5 * k, x + s * 1.05 * k, y - s * 0.2 * k, x + s * 0.85 * k, y + s * 0.55 * k);
+    ctx.bezierCurveTo(x + s * 0.7 * k, y + s * 1.2 * k, x - s * 0.7 * k, y + s * 1.2 * k, x - s * 0.85 * k, y + s * 0.55 * k);
+    ctx.bezierCurveTo(x - s * 1.05 * k, y - s * 0.1 * k, x - s * 0.35 * k, y - s * 0.3 * k, x, y - s * 1.25 * k);
+    ctx.closePath();
+  };
+  flame(1.14);
+  ctx.fillStyle = INK;
   ctx.fill();
-  poly(ctx, [x, y - r * 1.15, x + r, y - r * 0.2, x, y - r * 0.05, x - r, y - r * 0.2], 'rgba(255,255,255,0.45)');
+  flame(1);
+  ctx.fillStyle = gradV(ctx, y - s * 1.25, y + s * 1.1, '#ffd23f', '#ff5a1f');
+  ctx.fill();
+  // 内側の明るい炎
+  ctx.save();
+  ctx.translate(0, s * 0.32);
+  flame(0.5);
+  ctx.fillStyle = '#fff3a0';
+  ctx.fill();
+  ctx.restore();
 }
 
 function panel(ctx: Ctx, x: number, y: number, w: number, h: number): void {
@@ -87,7 +98,7 @@ export function drawShop(ctx: Ctx, s: ShopLook): void {
   ctx.fillStyle = 'rgba(8,10,24,0.86)';
   ctx.fillRect(0, 0, W, H);
 
-  fancyText(ctx, 'ジェムショップ', W / 2, 96, { size: 46, top: '#d8f8ff', bottom: '#4fb8ff' });
+  fancyText(ctx, 'やる気ショップ', W / 2, 96, { size: 46, top: '#fff3a0', bottom: '#ff8a1f' });
   // 期間限定セール。残り時間は減り続け、0 になるとまた 5 分から始まる
   const left = SALE_SECONDS - (s.time % SALE_SECONDS);
   const mm = String(Math.floor(left / 60)).padStart(2, '0');
@@ -95,10 +106,10 @@ export function drawShop(ctx: Ctx, s: ShopLook): void {
   fillRoundRect(ctx, 96, 138, 348, 38, 19, '#e3101f');
   text(ctx, `期間限定セール！ あと ${mm}:${ss}`, W / 2, 158, { size: 19, weight: 900, color: '#fff7a8' });
 
-  // 持っているジェムと、これまでの気持ち課金額
+  // 持っているやる気と、これまでの気持ち課金額
   fillRoundRect(ctx, 60, 196, 420, 96, 18, 'rgba(255,255,255,0.1)');
   drawGem(ctx, 98, 226, 15);
-  text(ctx, '所持ジェム', 122, 226, { size: 17, weight: 800, align: 'left', color: '#cfe6ff' });
+  text(ctx, '手持ちのやる気', 122, 226, { size: 17, weight: 800, align: 'left', color: '#cfe6ff' });
   fancyText(ctx, formatComma(s.gems), 462, 226, { size: 30, top: '#ffffff', bottom: '#bfe9ff', align: 'right', shadow: 0, strokeWidth: 4 });
   text(ctx, '気持ち課金額', 80, 268, { size: 16, weight: 800, align: 'left', color: '#cfe6ff' });
   text(ctx, `¥${formatComma(s.spent)}（実際のご請求 ¥0）`, 462, 268, { size: 17, weight: 900, align: 'right', color: '#fff7a8', maxWidth: 270 });
@@ -109,7 +120,7 @@ export function drawShop(ctx: Ctx, s: ShopLook): void {
     roundRect(ctx, 60, y, 420, ROW_H - 10, 16);
     ctx.fillStyle = gradV(ctx, y, y + ROW_H - 10, '#ffffff', '#e6ecf8');
     ctx.fill();
-    // ジェムの山。高いパックほど数が多い
+    // やる気の炎。高いパックほど数が多い
     const pile = Math.min(i, 2);
     for (let g = pile; g >= 0; g--) drawGem(ctx, 96 + g * 11 - pile * 5, y + 38 - g * 3, 15 - g);
     text(ctx, p.name, 138, y + 23, { size: 16, weight: 900, align: 'left', color: '#55607c' });
@@ -124,7 +135,7 @@ export function drawShop(ctx: Ctx, s: ShopLook): void {
     }
   });
   const notice = s.step.at === 'list' ? s.step.notice : '';
-  text(ctx, notice || `ジェムは「コンティニュー」（${GEM}${CONTINUE_COST}）に使えます`, W / 2, 668, { size: 17, weight: 900, color: notice ? '#ffd23f' : '#cfe6ff', maxWidth: 480 });
+  text(ctx, notice || `やる気は「コンティニュー」（${GEM}${CONTINUE_COST}）に使えます`, W / 2, 668, { size: 17, weight: 900, color: notice ? '#ffd23f' : '#cfe6ff', maxWidth: 480 });
   text(ctx, '※ このショップはネタです。実際のお金はかかりません。', W / 2, 706, { size: 14, weight: 700, color: '#aab6d0' });
   text(ctx, '入力するものも、どこかへ送るものもありません。', W / 2, 728, { size: 14, weight: 700, color: '#aab6d0' });
 
@@ -152,6 +163,6 @@ export function drawShop(ctx: Ctx, s: ShopLook): void {
     text(ctx, `${GEM}${formatComma(pack.gems)} を手に入れました`, W / 2, 484, { size: 22, weight: 900, color: INK });
     fillRoundRect(ctx, 90, 518, 360, 74, 14, '#eef2fa');
     text(ctx, '今回のご請求: ¥0', W / 2, 542, { size: 21, weight: 900, color: '#17803a' });
-    text(ctx, 'このゲームに課金機能はありません', W / 2, 572, { size: 15, weight: 800, color: '#55607c' });
+    text(ctx, 'やる気は、お金では買えません（課金機能はありません）', W / 2, 572, { size: 15, weight: 800, color: '#55607c', maxWidth: 340 });
   }
 }

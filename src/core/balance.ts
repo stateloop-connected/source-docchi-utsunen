@@ -18,7 +18,7 @@ export const B = {
   /** 基準のランク供給（ランク/秒）。ランクアップ 4 個/30 秒 + 金（+2）1 個/150 秒 */
   rRef: 0.44 / 3,
   phi0: 0.3,
-  kappa: 0.0045,
+  kappa: 0.0052,
   sizeBase: 3,
   sizeSlope: 0.02,
   sizeMax: 8,
@@ -137,7 +137,7 @@ export interface BlockDef {
 /** 4.2 節 */
 export const BLOCKS: Readonly<Record<BlockKind, BlockDef>> = {
   rank: { name: 'ランクアップ', cost: 3.5 },
-  gold: { name: 'エナドリ', cost: 7.0 },
+  gold: { name: 'エナドリ', cost: 5.0 },
   buddy: { name: '相棒', cost: 4.0 },
   bomb: { name: '一斉削除', cost: 1.5 },
   vacation: { name: '有給休暇', cost: 2.0 },

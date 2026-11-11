@@ -71,7 +71,7 @@ class App {
   private closePressedAt = -10;
   private result: ResultStats | null = null;
   private resultAt = 0;
-  /** ネタのショップ。ジェムと気持ち課金額は、ゲームの強さに影響しない */
+  /** ネタのショップ。やる気（gems）と気持ち課金額は、ゲームの強さに影響しない */
   private gems = loadGems();
   private spent = loadSpent();
   private shopStep: ShopStep = { at: 'list', notice: '' };
@@ -286,14 +286,14 @@ ${location.origin}${location.pathname}`;
       this.gems = 0;
       saveSpent(0);
       saveGems(0);
-      this.shopStep = { at: 'list', notice: '返金しました（もともと ¥0 です）。ジェムも返しました' };
+      this.shopStep = { at: 'list', notice: '返金しました（もともと ¥0 です）。やる気も元に戻りました' };
     } else if (id === 'shopClose') {
       this.mode = this.shopFrom;
     }
     this.focus = -1;
   }
 
-  /** 「決済」が終わったら、ジェムを足す。請求は 0 円 */
+  /** 「決済」が終わったら、やる気を足す。請求は 0 円 */
   private finishPayment(pack: number): void {
     const p = PACKS[pack]!;
     this.gems += p.gems;
@@ -305,12 +305,12 @@ ${location.origin}${location.pathname}`;
   }
 
   /**
-   * リザルトの「コンティニュー」。ジェムを払うと続きから…とはならず、気持ちだけ続けて最初から始まる。
+   * リザルトの「コンティニュー」。やる気を払うと続きから…とはならず、気持ちだけ続けて最初から始まる。
    * 本当に続きから遊べると、払った人だけが有利になってしまうため。
    */
   private fakeContinue(): void {
     if (this.gems < CONTINUE_COST) {
-      this.openShop(`ジェムが足りません（コンティニューには ${GEM}${CONTINUE_COST} 必要です）`);
+      this.openShop(`やる気が足りません（コンティニューには ${GEM}${CONTINUE_COST}必要です）`);
       return;
     }
     this.gems -= CONTINUE_COST;

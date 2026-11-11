@@ -48,7 +48,7 @@ function readCount(key: string): number {
   return Number.isFinite(n) && n > 0 ? Math.floor(n) : 0;
 }
 
-/** 持っているジェムの数。ゲームの強さには影響しない */
+/** 持っている「やる気」の数（ネタのショップで売っているもの）。ゲームの強さには影響しない */
 export function loadGems(): number {
   return readCount(KEY_GEMS);
 }
