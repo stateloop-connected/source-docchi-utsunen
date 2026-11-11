@@ -4,7 +4,7 @@
 # 型検査:         docker compose run --rm check
 # ビルド:         docker compose run --rm build     → dist/
 # ビルドの確認:   docker compose run --rm --service-ports preview → http://localhost:4173/
-# 参照シミュレータ: docker compose run --rm reference
+# 参照シミュレータ: docker compose run --rm reference（数秒）
 # イメージを更新するときは、公開から7日以上たったものをダイジェストで固定する。
 x-hardening: &hardening
   cap_drop: [ALL]
@@ -91,13 +91,15 @@ services:
     ports: ["127.0.0.1:4173:4173"]
     command: /node_modules/.bin/vite preview --configLoader native --host 0.0.0.0 --port 4173 --strictPort
 
-  # Python の参照シミュレータ（標準ライブラリのみ。数分かかる）
+  # Python の参照シミュレータ（標準ライブラリのみ。数秒で終わる）
+  # 並列数が多いとワーカーが落ちて止まることがあったので、使う CPU を 4 個に絞る（並列数は使える CPU の数で決まる）
   reference:
     <<: *hardening
     image: python:3.13-slim@sha256:7c61056e61ac89e852de05f3dc6fa51a6dd2181797bceed46aa725dd7cb2cd3b
     profiles: [tools]
     user: "1000:1000"
     network_mode: none
+    cpuset: "0-3"
     working_dir: /tmp
     volumes:
       - ./reference:/work:ro

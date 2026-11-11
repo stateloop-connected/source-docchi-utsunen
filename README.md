@@ -28,7 +28,7 @@ docker compose run --rm sim                       # バランス検証（最後�
 docker compose run --rm check                     # 型検査
 docker compose run --rm build                     # dist/ に静的ファイルを出力
 docker compose run --rm --service-ports preview   # dist/ を配信 → http://localhost:4173/
-docker compose run --rm reference                 # Python の参照シミュレータ（数分〜十数分かかる）
+docker compose run --rm reference                 # Python の参照シミュレータ（最後に「総合: 合格」と出れば成功）
 ```
 
 `dist/` の中身は、そのまま静的ファイルとして配信できます（サブパスに置いても動きます）。

@@ -64,7 +64,7 @@ Node・Python はホストに入れず、すべて Docker で動かす（`compos
 | 型検査 | `docker compose run --rm check` | `npm run check` |
 | `dist/` に静的ファイルを出力 | `docker compose run --rm build` | `npm run build` |
 | `dist/` を配信して確認（http://localhost:4173/） | `docker compose run --rm --service-ports preview` | `npm run preview` |
-| 参照シミュレータ（数分〜十数分かかる） | `docker compose run --rm reference` | — |
+| 参照シミュレータ（数秒） | `docker compose run --rm reference` | — |
 
 - 種ごとの生存時間を参照と見比べるときは `docker compose run --rm sim node src/sim/cli.ts --seeds`（`run` の後ろに引数を足すとコマンドごと置き換わるため、全体を書く）。
 - 見た目の確認方法は `docs/implementation.md` の「確認のしかた」。
@@ -112,5 +112,5 @@ Node・Python はホストに入れず、すべて Docker で動かす（`compos
 - 参照シミュレータと数値を揃えるため、`src/core/formulas.ts` の計算の順序と、`balance.ts` の `epsilon`（埋まり度とボムの比較の許容誤差）を変えない。変えると種ごとの生存時間が参照とずれる。
 - バインドマウント越しではファイル変更の通知が届かないので、開発サーバーは `VITE_POLL` でポーリングしている。ブラウザでの確認中にソースを保存するとページが再読み込みされ、確認が最初からになる。
 - Vite は知らないホスト名での接続を拒む。別のコンテナから開発サーバーを開くときは、コンテナ名ではなく IP アドレスを使う。
-- 参照シミュレータは十数分かかることがある。ほかの作業を止めないよう、バックグラウンドで実行する。
+- 参照シミュレータは、並列数が多いとワーカーが Segmentation fault で落ち、結果を待ったまま止まることがあった（原因は未特定。Python の版を変えても起きた）。`compose.yaml` で使う CPU を 4 個に絞ってあり、数秒で終わる。数十秒たっても終わらなければ止まっているので、コンテナを終了してやり直す。
 - 音は耳で確かめられない環境がある。その場合は、例外が出ないことの確認までしかできていないと `docs/decisions.md` に正直に書き、依頼者に聞いてもらう。
