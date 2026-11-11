@@ -10,6 +10,7 @@ import { initSprites } from '../render/sprites.ts';
 import {
   CAPTION_SECONDS,
   FAIL_SECONDS,
+  drawBanner,
   drawPause,
   drawResult,
   drawTitle,
@@ -22,10 +23,11 @@ import {
 } from './screens.ts';
 import { reviewPlay } from './review.ts';
 import { Session } from './session.ts';
-import { loadHighScore, loadSound, saveHighScore, saveSound } from './storage.ts';
+import { CONTINUE_COST, GEM, PACKS, PAYING_SECONDS, drawShop, shopButtons, type ShopStep } from './shop.ts';
+import { loadGems, loadHighScore, loadSound, loadSpent, saveGems, saveHighScore, saveSound, saveSpent } from './storage.ts';
 import { drawButton, hitButton, type Button } from './ui.ts';
 
-type Mode = 'title' | 'play' | 'paused' | 'result';
+type Mode = 'title' | 'play' | 'paused' | 'result' | 'shop';
 
 /** ゲームオーバーからリザルトを出すまでの秒数（7 章） */
 const RESULT_DELAY = 1.5;
@@ -58,6 +60,14 @@ class App {
   private closePressedAt = -10;
   private result: ResultStats | null = null;
   private resultAt = 0;
+  /** ネタのショップ。ジェムと気持ち課金額は、ゲームの強さに影響しない */
+  private gems = loadGems();
+  private spent = loadSpent();
+  private shopStep: ShopStep = { at: 'list', notice: '' };
+  /** ショップを閉じたら戻る画面 */
+  private shopFrom: 'title' | 'result' = 'title';
+  /** 本編の開始直後に、画面の上のほうへ出すひとこと */
+  private banner: { label: string; until: number } | null = null;
   private readonly held = { left: false, right: false };
   /** キーで動いている最中か（離した瞬間に止めるために覚えておく） */
   private keyMoving = false;
@@ -115,6 +125,7 @@ class App {
     this.overAge = 0;
     this.result = null;
     this.message = null;
+    this.banner = null;
     this.session = new Session(newSeed(), false, this.synth);
     this.synth.resume();
     this.synth.startBgm();
@@ -185,6 +196,8 @@ class App {
         return pauseButtons(this.synth.isEnabled);
       case 'result':
         return resultButtons();
+      case 'shop':
+        return shopButtons(this.shopStep);
     }
   }
 
@@ -210,10 +223,81 @@ class App {
       case 'title':
         this.toTitle();
         break;
+      case 'shop':
+        this.openShop('');
+        break;
+      case 'continue':
+        this.fakeContinue();
+        break;
+      case 'shopClose':
+      case 'cancel':
+      case 'ok':
+      case 'pay':
+      case 'refund':
+        this.shopAction(id);
+        break;
       case 'copy':
         this.copyResult();
         break;
+      default:
+        if (id.startsWith('buy')) this.shopAction(id);
     }
+  }
+
+  // ---------------------------------------------------------------- ネタのショップ
+
+  private openShop(notice: string): void {
+    this.shopFrom = this.mode === 'result' ? 'result' : 'title';
+    this.shopStep = { at: 'list', notice };
+    this.mode = 'shop';
+    this.focus = -1;
+  }
+
+  private shopAction(id: string): void {
+    const step = this.shopStep;
+    if (id.startsWith('buy') && step.at === 'list') {
+      this.shopStep = { at: 'confirm', pack: Number(id.slice(3)) };
+    } else if (id === 'pay' && step.at === 'confirm') {
+      this.shopStep = { at: 'paying', pack: step.pack, since: this.time };
+    } else if (id === 'cancel' || id === 'ok') {
+      this.shopStep = { at: 'list', notice: '' };
+    } else if (id === 'refund') {
+      // もともと 0 円なので、返すものは気持ちだけ
+      this.spent = 0;
+      this.gems = 0;
+      saveSpent(0);
+      saveGems(0);
+      this.shopStep = { at: 'list', notice: '返金しました（もともと ¥0 です）。ジェムも返しました' };
+    } else if (id === 'shopClose') {
+      this.mode = this.shopFrom;
+    }
+    this.focus = -1;
+  }
+
+  /** 「決済」が終わったら、ジェムを足す。請求は 0 円 */
+  private finishPayment(pack: number): void {
+    const p = PACKS[pack]!;
+    this.gems += p.gems;
+    this.spent += p.yen;
+    saveGems(this.gems);
+    saveSpent(this.spent);
+    this.shopStep = { at: 'done', pack };
+    this.synth.purchase();
+  }
+
+  /**
+   * リザルトの「コンティニュー」。ジェムを払うと続きから…とはならず、気持ちだけ続けて最初から始まる。
+   * 本当に続きから遊べると、払った人だけが有利になってしまうため。
+   */
+  private fakeContinue(): void {
+    if (this.gems < CONTINUE_COST) {
+      this.openShop(`ジェムが足りません（コンティニューには ${GEM}${CONTINUE_COST} 必要です）`);
+      return;
+    }
+    this.gems -= CONTINUE_COST;
+    saveGems(this.gems);
+    this.startGame();
+    this.banner = { label: 'コンティニュー！…は気持ちだけ。WAVE 1 からどうぞ', until: this.time + 3.5 };
   }
 
   /** 画面の x（論理解像度）を、立ちたい横位置にする */
@@ -282,6 +366,8 @@ class App {
       const buttons = this.buttons();
       const n = buttons.length;
       if (this.mode === 'paused' && (key === 'Escape' || key === 'p')) this.resume();
+      else if (this.mode === 'shop' && key === 'Escape') this.shopAction(this.shopStep.at === 'list' ? 'shopClose' : 'cancel');
+      else if (n === 0) handled = false;
       else if (key === 'ArrowDown' || key === 'ArrowRight' || (key === 'Tab' && !e.shiftKey)) this.focus = (this.focus + 1) % n;
       else if (key === 'ArrowUp' || key === 'ArrowLeft' || key === 'Tab') this.focus = (Math.max(this.focus, 0) + n - 1) % n;
       else if (key === 'Enter' || key === ' ') this.press(buttons[Math.max(this.focus, 0)]!.id);
@@ -329,6 +415,14 @@ class App {
         this.overAge += dt;
         if (this.overAge >= RESULT_DELAY) this.showResult();
       }
+    } else if (this.mode === 'shop') {
+      // タイトルから開いたときは、後ろでデモを流し続ける
+      if (this.shopFrom === 'title') {
+        this.session.advance(dt);
+        if (s.over && (this.overAge += dt) >= FAIL_SECONDS) this.startDemo();
+      }
+      const step = this.shopStep;
+      if (step.at === 'paying' && this.time - step.since >= PAYING_SECONDS) this.finishPayment(step.pack);
     }
   }
 
@@ -380,7 +474,12 @@ class App {
     if (this.mode === 'paused') {
       drawPause(ctx);
     } else if (this.mode === 'result' && this.result) {
-      drawResult(ctx, this.result, this.message && this.time < this.message.until ? this.message.label : null, this.time - this.resultAt);
+      drawResult(ctx, this.result, this.message && this.time < this.message.until ? this.message.label : null, this.time - this.resultAt, this.gems);
+    } else if (this.mode === 'shop') {
+      if (this.shopFrom === 'result' && this.result) drawResult(ctx, this.result, null, 99, this.gems);
+      drawShop(ctx, { time: this.time, step: this.shopStep, gems: this.gems, spent: this.spent });
+    } else if (this.mode === 'play' && this.banner && this.time < this.banner.until) {
+      drawBanner(ctx, this.banner.label, this.banner.until - this.time);
     }
     drawButtons();
   }

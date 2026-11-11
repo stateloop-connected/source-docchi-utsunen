@@ -3,6 +3,7 @@ import { INK, clamp, fancyText, fillRoundRect, gradV, roundRect, text, type Ctx 
 import { formatComma } from '../render/format.ts';
 import { H, HORIZON_Y, W } from '../render/projection.ts';
 import type { Review } from './review.ts';
+import { CONTINUE_COST, GEM } from './shop.ts';
 import type { Button } from './ui.ts';
 
 /** 煽り文句。4 秒ごとに切り替える */
@@ -34,6 +35,7 @@ export function titleButtons(soundOn: boolean): Button[] {
     { id: 'play', x: 110, y: 896, w: 320, h: 50, label: '▶ 今すぐプレイ', style: 'primary' },
     { id: 'sound', x: 12, y: 902, w: 86, h: 38, label: soundOn ? '音 ON' : '音 OFF', style: 'small' },
     { id: 'close', x: 496, y: 16, w: 24, h: 24, label: '✕', style: 'close' },
+    { id: 'shop', x: 442, y: 902, w: 86, h: 38, label: 'ショップ', style: 'small' },
   ];
 }
 
@@ -54,6 +56,7 @@ export function resultButtons(): Button[] {
     { id: 'retry', x: 70, y: 690, w: 400, h: 70, label: 'もう一度', style: 'primary' },
     { id: 'title', x: 70, y: 786, w: 192, h: 56, label: 'タイトルへ', style: 'normal' },
     { id: 'copy', x: 278, y: 786, w: 192, h: 56, label: '結果をコピー', style: 'normal' },
+    { id: 'continue', x: 110, y: 862, w: 320, h: 40, label: `${GEM}${CONTINUE_COST} でコンティニュー`, style: 'gold' },
   ];
 }
 
@@ -148,8 +151,15 @@ export function drawTitle(ctx: Ctx, t: TitleLook): void {
   }
 
   // 広告らしい飾り
-  fillRoundRect(ctx, 442, 905, 86, 32, 8, 'rgba(14,18,36,0.6)');
-  text(ctx, '広告', 485, 922, { size: 15, weight: 800, color: '#dfe6f3' });
+  // 「広告」の札と、ショップの「SALE」の札
+  fillRoundRect(ctx, 44, 186, 54, 22, 6, '#ffd23f');
+  text(ctx, '広告', 71, 197.5, { size: 14, weight: 900, color: INK });
+  ctx.save();
+  ctx.translate(512, 902);
+  ctx.rotate(0.2);
+  fillRoundRect(ctx, -24, -10, 48, 20, 10, '#e3101f');
+  text(ctx, 'SALE', 0, 0.5, { size: 12, weight: 900, color: '#fff7a8' });
+  ctx.restore();
   drawHand(ctx, t.time);
   if (t.closeAge >= 0 && t.closeAge < 1.2) {
     ctx.globalAlpha = clamp((1.2 - t.closeAge) / 0.3, 0, 1);
@@ -166,7 +176,7 @@ export function drawPause(ctx: Ctx): void {
 }
 
 /** age はリザルトを出してからの秒数 */
-export function drawResult(ctx: Ctx, r: ResultStats, message: string | null, age: number): void {
+export function drawResult(ctx: Ctx, r: ResultStats, message: string | null, age: number, gems: number): void {
   ctx.fillStyle = 'rgba(8,10,24,0.8)';
   ctx.fillRect(0, 0, W, H);
   const drop = (1 - clamp(age / 0.25, 0, 1)) ** 2 * -60;
@@ -226,10 +236,19 @@ export function drawResult(ctx: Ctx, r: ResultStats, message: string | null, age
   ctx.restore();
   ctx.globalAlpha = 1;
 
-  if (message) fancyText(ctx, message, W / 2, 876, { size: 18, top: '#fff7a8', bottom: '#ffd23f', maxWidth: 500, shadow: 0, strokeWidth: 4 });
+  text(ctx, `所持ジェム ${GEM}${formatComma(gems)}`, W / 2, 922, { size: 14, weight: 800, color: '#cfe6ff' });
+  if (message) fancyText(ctx, message, W / 2, 944, { size: 18, top: '#fff7a8', bottom: '#ffd23f', maxWidth: 500, shadow: 0, strokeWidth: 4 });
 }
 
 /** 「結果をコピー」でクリップボードに入れる文字列（仕様書 2.6 節） */
 export function resultText(r: ResultStats): string {
   return `どっち撃つねん｜WAVE ${r.wave}・スコア ${formatComma(r.score)}・推定IQ ${r.iq}`;
+}
+
+/** 本編の開始直後に、画面の上のほうへ出すひとこと。left は消えるまでの秒数 */
+export function drawBanner(ctx: Ctx, label: string, left: number): void {
+  ctx.globalAlpha = clamp(left / 0.4, 0, 1);
+  fillRoundRect(ctx, 30, 196, 480, 44, 22, 'rgba(14,18,36,0.82)');
+  text(ctx, label, W / 2, 219, { size: 18, weight: 900, color: '#fff7a8', maxWidth: 450 });
+  ctx.globalAlpha = 1;
 }

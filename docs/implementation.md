@@ -28,8 +28,9 @@
 | `src/app/session.ts` | 1 回分のゲーム（状態 + 見た目 + デモなら AI）。経過時間を貯めて step を回す |
 | `src/app/screens.ts` | タイトル・一時停止・リザルトの重ね描き、ボタン配置、煽り文句、コピーする文字列 |
 | `src/app/review.ts` | リザルトの称号とひとことの判定（仕様書 6.6 節） |
+| `src/app/shop.ts` | ネタのショップの中身（パック、画面、ボタン配置。仕様書 6.10 節） |
 | `src/app/ui.ts` | キャンバス上のボタン（当たり判定と描画） |
-| `src/app/storage.ts` | localStorage（ハイスコアと音の設定） |
+| `src/app/storage.ts` | localStorage（ハイスコア、音の設定、ネタのショップのジェムと気持ち課金額） |
 | `tests/` | 単体テスト。`reference/golden.json` を直接読んで比べる |
 | `compose.yaml` | 開発・テスト・検証・ビルドを Docker で動かす設定 |
 | `.github/workflows/ci.yml` | push と pull request で型検査・テスト・バランス検証・ビルドを行う |
