@@ -58,22 +58,46 @@ canvas {
   }
 }
 
-/* 指で遊ぶ縦長の画面では、キャンバスを上に寄せ、下にあけた場所に「ここをなぞる」と書いておく（高さは main.ts が決める） */
+/*
+ * 指で遊ぶ縦長の画面では、キャンバスを上に寄せ、下にあけた場所を「指を置く場所」にする（高さは main.ts が決める）。
+ * 黒い余白のままだと浮いて見えるので、画面下端の足場（鉄の床）がそのまま続いているように塗り、
+ * なぞる場所を溝の形で示す。
+ */
 body.finger {
   align-items: flex-start;
 }
 
-body.finger::after {
-  content: '←　ここをなぞって動かす　→';
+/* 足場の続き。色は、キャンバス下端の足場の色（#222631）から始める。上の列の点は鋲 */
+body.finger::before {
+  content: '';
   position: fixed;
   left: 0;
   right: 0;
   bottom: 0;
   height: var(--finger-area, 0px);
+  background:
+    radial-gradient(circle, rgba(255, 255, 255, 0.16) 2px, transparent 2.6px) 14px 6px / 56px 12px repeat-x,
+    linear-gradient(#222631, #12151d);
+  pointer-events: none;
+}
+
+/* なぞる溝。左右の矢印で、動かす向きを示す */
+body.finger::after {
+  content: '◀　ここをなぞって動かす　▶';
+  position: fixed;
+  left: 7%;
+  right: 7%;
+  bottom: calc((var(--finger-area, 0px) - 40px) / 2);
+  height: 40px;
+  border-radius: 20px;
+  background: #0c0f16;
+  box-shadow:
+    inset 0 2px 5px rgba(0, 0, 0, 0.7),
+    0 1px 0 rgba(255, 255, 255, 0.09);
   display: flex;
   align-items: center;
   justify-content: center;
   font: 700 13px sans-serif;
-  color: rgba(255, 255, 255, 0.45);
+  color: rgba(255, 255, 255, 0.55);
   pointer-events: none;
 }

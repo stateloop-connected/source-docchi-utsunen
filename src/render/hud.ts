@@ -10,9 +10,6 @@ import { LOOK, enemySpriteId, type View } from './view.ts';
 
 /** 埋まり度がこの割合以上でゲージが赤く点滅する */
 export const DANGER_RATIO = 0.7;
-/** 開始からこの秒数だけ操作の案内を出す */
-const GUIDE_SECONDS = 10;
-
 export interface HudOptions {
   /** タイトル画面のデモ。右上の「✕」のためにゲージを短くし、武器名を上に移す */
   demo: boolean;
@@ -195,8 +192,8 @@ function drawBossIntro(ctx: Ctx, v: View): void {
 
 /** 開始直後の案内。遊ぶ場所をふさがないよう、道の上に小さく書く */
 function drawGuide(ctx: Ctx, s: GameState, v: View): void {
-  if (s.t >= GUIDE_SECONDS) return;
-  const fade = clamp(GUIDE_SECONDS - s.t, 0, 1);
+  if (s.t >= LOOK.guideTime) return;
+  const fade = clamp(LOOK.guideTime - s.t, 0, 1);
   const bounce = Math.abs(Math.sin(v.time * 5)) * 6;
   ctx.globalAlpha = fade;
   fillRoundRect(ctx, 76, 104, 388, 34, 17, 'rgba(10,14,30,0.7)');

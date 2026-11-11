@@ -77,6 +77,8 @@ export const LOOK = {
   mowCooldown: 10,
   /** 初めて出た種類の敵を紹介する札と、その敵の頭上に名前を出す時間 */
   introTime: 3.6,
+  /** 開始直後の案内を出しておく時間 */
+  guideTime: 10,
   /** 敵を倒したときのひとこと（「既読」など）を、次に出すまであける秒数。うるさくならないよう、数の多い敵（未読通知、迷惑メール）は長くあける */
   defeatWordGap: 8,
   defeatWordGapCommon: 20,
@@ -640,7 +642,8 @@ export class View {
   /** 会心が当たった。初めてのときだけ、何が起きたかをひとこと出す */
   private onCrit(): void {
     this.sfx?.crit();
-    if (!this.noCritYet || !this.tips) return;
+    // 開始直後は、上の案内に同じこと（真ん中に当てると会心）が書いてあり、敵の紹介も出ているので、説明は案内が消えてからにする
+    if (!this.noCritYet || !this.tips || this.time < LOOK.guideTime) return;
     this.noCritYet = false;
     this.toast('praise', `会心！ 真ん中に当てるとダメージ ${AIM.critMult} 倍`, W / 2, 300, 30, TONE.gold, 1.8);
   }
