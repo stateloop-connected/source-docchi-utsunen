@@ -30,6 +30,7 @@ export class Session {
     this.state = createGame(seed);
     this.view = new View(seed, sfx);
     this.bot = demo ? createDemoBot(seed) : null;
+    if (!demo) this.view.announce('スタート！');
   }
 
   /** 強化の帯にいた時間の割合（0〜1） */

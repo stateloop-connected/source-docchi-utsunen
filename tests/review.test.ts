@@ -14,7 +14,7 @@ describe('リザルトの称号とひとこと', () => {
     expect(reviewPlay(s, 0.5, 0)).toMatchObject({ taken: 11, offered: 15, doubles: 4 });
   });
 
-  it('強化レーンに寄せすぎると「欲張りさん」、敵ばかりだと「慎重派」', () => {
+  it('強化の帯に寄せすぎると「欲張りさん」、敵ばかりだと「慎重派」', () => {
     const s = createGame(1);
     expect(reviewPlay(s, 0.8, 0).title).toBe('欲張りさん');
     expect(reviewPlay(s, 0.8, 0).hint).toContain('寄せすぎ');
@@ -22,7 +22,7 @@ describe('リザルトの称号とひとこと', () => {
     expect(reviewPlay(s, 0.2, 0).hint).toContain('凪');
   });
 
-  it('罠・帽子・ボスの称号は、レーンの偏りより優先する', () => {
+  it('罠・帽子・ボス・両取りの称号は、立ち位置の偏りより優先する', () => {
     const trap = createGame(1);
     trap.got.trap = 3;
     expect(reviewPlay(trap, 0.8, 0).title).toBe('激安ハンター');

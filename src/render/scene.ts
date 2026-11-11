@@ -1,12 +1,13 @@
 // 背景・道・敵・ブロック・プレイヤー・弾・エフェクトの描画（仕様書 6 章）。状態を読むだけで書き換えない。
-import { AIM, B } from '../core/balance.ts';
-import { bossName, dpsOf, weaponStage } from '../core/formulas.ts';
+import { AIM, B, RUSH_START } from '../core/balance.ts';
+import { bossName, dpsOf, waveOf, weaponStage } from '../core/formulas.ts';
 import type { Block, GameState } from '../core/state.ts';
 import { INK, circle, clamp, ellipse, fancyText, fillRoundRect, gradV, lerp, poly, text, type Ctx } from './draw.ts';
 import { formatHp } from './format.ts';
 import { CENTER_X, FRONT_Y, H, HALF_ROAD, HORIZON_Y, W, kOf, xOf, yOf } from './projection.ts';
 import { BLOCK_NUMBER, BLOCK_TOP, CRACK_LEVELS, HAT_COLORS, drawSprite, drawSpriteCentered, drawSpriteStretch, sprite } from './sprites.ts';
 import { LOOK, TONE, blockZ, type Bullet, type View } from './view.ts';
+import { PALETTES, drawWorld, hash, skyPhase } from './world.ts';
 
 /** 帽子は 12 個まで積んで描き、それ以上は「×N」と数字で出す（仕様書 6.7 節） */
 const MAX_HATS_DRAWN = 12;
@@ -24,7 +25,9 @@ const MUZZLE_STAGES = new Set([3, 4, 5, 6, 7, 8]);
 /** 埋まり度がこの割合以上で、画面の縁を赤くし、防衛線の警告灯を回す */
 const DANGER_RATIO = 0.7;
 
-let background: HTMLCanvasElement | null = null;
+/** 時間帯ごとの遠景（空、街並み、海）と、その上に重ねる橋 */
+let worlds: HTMLCanvasElement[] = [];
+let stage: HTMLCanvasElement | null = null;
 let vignette: HTMLCanvasElement | null = null;
 
 function offscreen(w: number, h: number, scale: number, draw: (c: Ctx) => void): HTMLCanvasElement {
@@ -54,86 +57,8 @@ function kAtY(y: number): number {
   return 0.25 + ((y - HORIZON_Y) * 0.75) / (FRONT_Y - HORIZON_Y);
 }
 
-/** 番号から決まる 0〜1 の擬似乱数。見た目を毎回同じにするために使う */
-function hash(i: number): number {
-  const v = Math.sin(i * 12.9898 + 4.1414) * 43758.5453;
-  return v - Math.floor(v);
-}
 
-// ---------------------------------------------------------------- 背景（起動時に 1 枚の絵にする）
-
-function drawSky(c: Ctx): void {
-  const sky = c.createLinearGradient(0, 0, 0, HORIZON_Y);
-  sky.addColorStop(0, '#1877e6');
-  sky.addColorStop(0.55, '#58bbff');
-  sky.addColorStop(1, '#dff6ff');
-  c.fillStyle = sky;
-  c.fillRect(0, 0, W, HORIZON_Y);
-  const sun = c.createRadialGradient(430, 86, 0, 430, 86, 170);
-  sun.addColorStop(0, 'rgba(255,255,240,0.95)');
-  sun.addColorStop(0.12, 'rgba(255,250,210,0.75)');
-  sun.addColorStop(1, 'rgba(255,255,255,0)');
-  c.fillStyle = sun;
-  c.fillRect(0, 0, W, HORIZON_Y);
-}
-
-function drawSkyline(c: Ctx): void {
-  // 奥の列は淡く、手前の列は少し濃く。窓を点で入れる
-  for (let layer = 0; layer < 2; layer++) {
-    const tint = layer === 0 ? '#a9d6f3' : '#7fb9e2';
-    const win = layer === 0 ? 'rgba(255,255,255,0.35)' : 'rgba(255,255,255,0.5)';
-    let x = layer === 0 ? -10 : -24;
-    let i = layer * 31;
-    while (x < W) {
-      const w = 22 + hash(i) * 26;
-      const h = (layer === 0 ? 34 : 18) + hash(i + 7) * (layer === 0 ? 54 : 44);
-      c.fillStyle = tint;
-      c.fillRect(x, HORIZON_Y - h, w, h);
-      c.fillStyle = win;
-      for (let wy = HORIZON_Y - h + 5; wy < HORIZON_Y - 5; wy += 7) {
-        for (let wx = x + 4; wx < x + w - 4; wx += 6) if (hash(wx * 3 + wy) > 0.45) c.fillRect(wx, wy, 2.5, 3);
-      }
-      x += w + (hash(i + 3) > 0.6 ? 6 : 0);
-      i++;
-    }
-  }
-  // 塔と観覧車
-  poly(c, [356, HORIZON_Y, 368, HORIZON_Y - 104, 372, HORIZON_Y - 104, 384, HORIZON_Y], '#f08a7a');
-  c.fillStyle = '#ffffff';
-  c.fillRect(361, HORIZON_Y - 62, 18, 4);
-  c.fillRect(364, HORIZON_Y - 36, 12, 3);
-  c.strokeStyle = '#c9a0e8';
-  c.lineWidth = 2.5;
-  c.beginPath();
-  c.arc(96, HORIZON_Y - 40, 32, 0, Math.PI * 2);
-  c.stroke();
-  c.lineWidth = 1.2;
-  for (let i = 0; i < 8; i++) {
-    const a = (i / 8) * Math.PI * 2;
-    c.beginPath();
-    c.moveTo(96, HORIZON_Y - 40);
-    c.lineTo(96 + Math.cos(a) * 32, HORIZON_Y - 40 + Math.sin(a) * 32);
-    c.stroke();
-    circle(c, 96 + Math.cos(a) * 32, HORIZON_Y - 40 + Math.sin(a) * 32, 3, '#ffd23f');
-  }
-  poly(c, [90, HORIZON_Y, 96, HORIZON_Y - 40, 102, HORIZON_Y], '#b88fd8');
-}
-
-function drawSea(c: Ctx): void {
-  const sea = c.createLinearGradient(0, HORIZON_Y, 0, H);
-  sea.addColorStop(0, '#b6f0f5');
-  sea.addColorStop(0.25, '#4fcfe0');
-  sea.addColorStop(1, '#127fb0');
-  c.fillStyle = sea;
-  c.fillRect(0, HORIZON_Y, W, H - HORIZON_Y);
-  // 波の筋。奥ほど細かく
-  for (let i = 1; i < 40; i++) {
-    const z = 1 - i / 40;
-    const y = yOf(z * z);
-    c.fillStyle = `rgba(255,255,255,${0.05 + 0.1 * hash(i)})`;
-    c.fillRect(0, y, W, Math.max(1, 2.5 * kAtY(y)));
-  }
-}
+// ---------------------------------------------------------------- 背景（起動時に絵にしておく）
 
 function drawBridge(c: Ctx): void {
   // 橋の側面の影、縁の壁、路面
@@ -213,10 +138,8 @@ function drawPlatform(c: Ctx): void {
   }
 }
 
-function drawBackground(c: Ctx): void {
-  drawSky(c);
-  drawSkyline(c);
-  drawSea(c);
+/** 橋・手前の足場（遠景の上に重ねる、透けた絵） */
+function drawStage(c: Ctx): void {
   drawBridge(c);
   // 遠くをかすませて奥行きを出す
   const haze = c.createLinearGradient(0, HORIZON_Y, 0, HORIZON_Y + 210);
@@ -244,19 +167,23 @@ function drawVignette(c: Ctx): void {
 }
 
 export function initScene(): void {
-  background = offscreen(W, H, 2, drawBackground);
+  // 遠景はぼかしの多い絵なので等倍で足りる。橋は線が細いので 2 倍で描く
+  worlds = PALETTES.map((p) => offscreen(W, H, 1, (c) => drawWorld(c, p)));
+  stage = offscreen(W, H, 2, drawStage);
   vignette = offscreen(W, H, 0.5, drawVignette);
 }
 
 // ---------------------------------------------------------------- 動く背景
 
-function drawClouds(ctx: Ctx, time: number): void {
+function drawClouds(ctx: Ctx, time: number, alpha: number): void {
+  ctx.globalAlpha = alpha;
   for (let i = 0; i < 5; i++) {
     const span = W + 260;
     const x = ((hash(i) * span + time * (5 + i * 2.2)) % span) - 130;
     const scale = 0.55 + hash(i + 9) * 0.6;
     drawSpriteCentered(ctx, `cloud.${i % 3}`, x, 62 + hash(i + 4) * 120, scale);
   }
+  ctx.globalAlpha = 1;
 }
 
 function drawSparkles(ctx: Ctx, time: number): void {
@@ -739,9 +666,20 @@ export function drawScene(ctx: Ctx, s: GameState, v: View): void {
     const amp = LOOK.shakeMax * clamp(v.shakeLeft / LOOK.bossShakeTime, 0, 1);
     ctx.translate(Math.sin(v.time * 97) * amp, Math.cos(v.time * 113) * amp);
   }
-  ctx.drawImage(background!, 0, 0, W, H);
-  drawClouds(ctx, v.time);
+  // 遠景は、今の時間帯の絵に次の時間帯の絵を重ねて、ゆっくり移り変わらせる
+  const phase = skyPhase(s.t);
+  const tint = PALETTES[phase.from]!;
+  const next = PALETTES[phase.to]!;
+  ctx.drawImage(worlds[phase.from]!, 0, 0, W, H);
+  if (phase.mix > 0) {
+    ctx.globalAlpha = phase.mix;
+    ctx.drawImage(worlds[phase.to]!, 0, 0, W, H);
+    ctx.globalAlpha = 1;
+  }
+  drawClouds(ctx, v.time, tint.clouds + (next.clouds - tint.clouds) * phase.mix);
   drawSparkles(ctx, v.time);
+  drawRushGlow(ctx, s, v);
+  ctx.drawImage(stage!, 0, 0, W, H);
   drawChevrons(ctx, v.time);
   drawLaneOverlays(ctx, s, v);
   drawAimColumn(ctx, s, v);
@@ -752,6 +690,14 @@ export function drawScene(ctx: Ctx, s: GameState, v: View): void {
   drawPlayer(ctx, s, v);
   drawBeam(ctx, s, v);
   drawEffects(ctx, v);
+  // 時間帯の光を、道の上のもの全体に薄く重ねる
+  for (const [p, a] of [[tint, 1 - phase.mix], [next, phase.mix]] as const) {
+    if (a <= 0) continue;
+    ctx.globalAlpha = a;
+    ctx.fillStyle = p.tint;
+    ctx.fillRect(-10, HORIZON_Y, W + 20, H - HORIZON_Y + 10);
+  }
+  ctx.globalAlpha = 1;
   if (v.overAt >= 0) drawFlood(ctx, v);
   ctx.restore();
 
@@ -766,4 +712,16 @@ export function drawScene(ctx: Ctx, s: GameState, v: View): void {
     ctx.fillStyle = `rgba(255,255,255,${v.flash})`;
     ctx.fillRect(0, 0, W, H);
   }
+}
+
+/** ラッシュ中（ボス戦のウェーブではボスがいる間）は、地平線の向こうを赤く（ボス戦は紫に）光らせる */
+function drawRushGlow(ctx: Ctx, s: GameState, v: View): void {
+  if (s.over || s.t % B.waveLength < RUSH_START) return;
+  const boss = waveOf(s.t) % B.bossEvery === 0;
+  const a = 0.3 + 0.12 * Math.sin(v.time * 6);
+  const g = ctx.createLinearGradient(0, HORIZON_Y - 120, 0, HORIZON_Y);
+  g.addColorStop(0, boss ? 'rgba(170,60,255,0)' : 'rgba(255,60,40,0)');
+  g.addColorStop(1, boss ? `rgba(170,60,255,${a})` : `rgba(255,60,40,${a})`);
+  ctx.fillStyle = g;
+  ctx.fillRect(0, HORIZON_Y - 120, W, 120);
 }

@@ -33,7 +33,7 @@ export interface ResultStats {
 export function titleButtons(soundOn: boolean): Button[] {
   return [
     { id: 'play', x: 110, y: 896, w: 320, h: 50, label: '▶ 今すぐプレイ', style: 'primary' },
-    { id: 'sound', x: 12, y: 902, w: 86, h: 38, label: soundOn ? '音 ON' : '音 OFF', style: 'small' },
+    { id: 'sound', x: 12, y: 902, w: 86, h: 38, label: soundOn ? '音: ON' : '音: OFF', style: 'small' },
     { id: 'close', x: 496, y: 16, w: 24, h: 24, label: '✕', style: 'close' },
     { id: 'shop', x: 442, y: 902, w: 86, h: 38, label: 'ショップ', style: 'small' },
   ];

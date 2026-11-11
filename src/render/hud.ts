@@ -27,7 +27,9 @@ function plate(ctx: Ctx, x: number, y: number, w: number, h: number, r: number, 
 }
 
 function drawGauge(ctx: Ctx, s: GameState, v: View, width: number): void {
-  const x = 20;
+  // 危険域では、ゲージが小刻みに震える
+  const shake = s.fill / s.capacity >= DANGER_RATIO && !s.over ? Math.sin(v.time * 47) * 1.6 : 0;
+  const x = 20 + shake;
   const y = 16;
   const h = 24;
   const ratio = clamp(s.fill / s.capacity, 0, 1);

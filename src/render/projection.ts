@@ -10,10 +10,6 @@ export const CENTER_X = 270;
 /** 手前での道の半分の幅 */
 export const HALF_ROAD = 240;
 
-/** レーンの範囲（u） */
-export const ENEMY_LANE = { min: -0.92, max: -0.08, center: -0.5 } as const;
-export const BLOCK_LANE = { min: 0.08, max: 0.92, center: 0.5 } as const;
-
 /** 奥行きによる縮小率。手前で 1、地平線で 0.25 */
 export function kOf(z: number): number {
   return 1 / (1 + 3 * z);

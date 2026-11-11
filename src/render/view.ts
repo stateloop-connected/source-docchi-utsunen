@@ -1,7 +1,7 @@
 // 見た目だけの状態（敵の位置、弾、ダメージの数字、破片、演出のタイマー）。
 // ロジックの状態を読むだけで、ロジックには影響を与えない（仕様書 6 章・7 章）。
 import { AIM, B, type BlockKind, type EnemyKind, type Lane } from '../core/balance.ts';
-import { bossName, dpsOf, fireRate, weaponName, weaponStage } from '../core/formulas.ts';
+import { bossName, dpsOf, fireRate, waveOf, weaponName, weaponStage } from '../core/formulas.ts';
 import { mulberry32 } from '../core/rng.ts';
 import { sideOf, type Enemy, type GameEvent, type GameState } from '../core/state.ts';
 import { clamp } from './draw.ts';
@@ -296,6 +296,7 @@ export class View {
   /** 直近に敵を倒した時刻（なぎ倒しの判定用） */
   private killTimes: number[] = [];
   private lastMowAt = -10;
+  private lastWave = 1;
   private readonly rnd: () => number;
   private readonly sfx: Sfx | null;
 
@@ -315,6 +316,7 @@ export class View {
     this.updateShooting(dt, s);
     this.updateBullets(dt);
     this.updateRecovery(s);
+    this.updateWave(s);
     if (s.score > this.lastScore) this.scoreAt = this.time;
     this.lastScore = s.score;
     this.numbers = this.numbers.filter((n) => (n.age += dt) < LOOK.numberLife);
@@ -473,6 +475,21 @@ export class View {
       if (b.age >= LOOK.bulletTime && b.damage > 0) this.impact(b.x1, b.y1, b.k1, b.damage, b.lane, false, b.target);
     }
     this.bullets = this.bullets.filter((b) => b.age < LOOK.bulletTime);
+  }
+
+  /** ウェーブが変わったら、上のほうに小さく知らせる */
+  private updateWave(s: GameState): void {
+    const wave = waveOf(s.t);
+    if (wave === this.lastWave) return;
+    this.lastWave = wave;
+    if (s.over) return;
+    const boss = wave % B.bossEvery === 0;
+    this.toast('wave', boss ? `WAVE ${wave}　ボス戦` : `WAVE ${wave}`, W / 2, 124, 26, boss ? TONE.red : TONE.white, 1.3);
+  }
+
+  /** 画面の中央に、ひとこと大きく出す（開始の合図など） */
+  announce(label: string): void {
+    this.toast('praise', label, W / 2, 300, 46, TONE.gold, 1.1);
   }
 
   /** 危機から立て直したら、ひとこと褒める */

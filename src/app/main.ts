@@ -31,6 +31,8 @@ type Mode = 'title' | 'play' | 'paused' | 'result' | 'shop';
 
 /** ゲームオーバーからリザルトを出すまでの秒数（7 章） */
 const RESULT_DELAY = 1.5;
+/** 画面が切り替わったあと、明るくなるまでの秒数 */
+const FADE_SECONDS = 0.35;
 /** 実解像度を上げる上限。高すぎると描画が重くなる */
 const MAX_PIXEL_RATIO = 2;
 /** 1 フレームの経過時間の上限（秒）。タブが戻った直後などの飛びを捨てる */
@@ -68,6 +70,8 @@ class App {
   private shopFrom: 'title' | 'result' = 'title';
   /** 本編の開始直後に、画面の上のほうへ出すひとこと */
   private banner: { label: string; until: number } | null = null;
+  /** 画面が切り替わった時刻。切り替わった直後は、黒から明るくなる */
+  private fadeAt = -10;
   private readonly held = { left: false, right: false };
   /** キーで動いている最中か（離した瞬間に止めるために覚えておく） */
   private keyMoving = false;
@@ -83,7 +87,7 @@ class App {
     window.addEventListener('blur', () => this.releaseKeys());
     // マウスは動かすだけで、指は触れている間、その横位置を狙う
     window.addEventListener('pointermove', (e) => this.onPointerMove(e));
-    // 余白（キャンバスの外の黒い部分）を押してもレーンを切り替えられるよう、画面全体で受ける
+    // 余白（キャンバスの外の黒い部分）に触れても狙えるよう、画面全体で受ける
     window.addEventListener('pointerdown', (e) => this.onPointer(e));
     // iOS は指を離したときの操作でないと音を出せないことがあるので、離したときにも有効化を試みる
     for (const type of ['pointerup', 'touchend'] as const) window.addEventListener(type, () => this.synth.unlock());
@@ -105,6 +109,7 @@ class App {
   // ---------------------------------------------------------------- 画面遷移
 
   private toTitle(): void {
+    this.fadeAt = this.time;
     this.mode = 'title';
     this.focus = -1;
     this.synth.stopBgm();
@@ -120,6 +125,7 @@ class App {
   }
 
   private startGame(): void {
+    this.fadeAt = this.time;
     this.mode = 'play';
     this.focus = -1;
     this.overAge = 0;
@@ -441,6 +447,16 @@ class App {
   }
 
   private render(): void {
+    this.renderScreen();
+    // 画面が切り替わった直後は、暗いところから明るくする
+    const fade = 1 - (this.time - this.fadeAt) / FADE_SECONDS;
+    if (fade > 0) {
+      this.ctx.fillStyle = `rgba(8,10,24,${fade})`;
+      this.ctx.fillRect(0, 0, W, H);
+    }
+  }
+
+  private renderScreen(): void {
     const ctx = this.ctx;
     ctx.setTransform(this.pixelScale, 0, 0, this.pixelScale, 0, 0);
     const { state, view } = this.session;
