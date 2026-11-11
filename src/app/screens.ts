@@ -6,7 +6,7 @@ import { hash } from '../render/world.ts';
 import { AIM } from '../core/balance.ts';
 import type { Review } from './review.ts';
 import { CONTINUE_COST, GEM } from './shop.ts';
-import type { Button } from './ui.ts';
+import { PLAY_MARK, type Button } from './ui.ts';
 
 /** 煽り文句。4 秒ごとに切り替える */
 export const TAUNTS = ['未読 999+ 件、さばけますか？', '99% の人が WAVE 5 に届かない', '月曜日が来る前に倒せ', '社会人力 53 万以上ならクリア可能', '簡単そうに見えますよね？', '締切もリボ払いも撃てばいい', '3 分遊ぶと止まらなくなる'] as const;
@@ -35,7 +35,7 @@ export interface ResultStats {
 
 export function titleButtons(soundOn: boolean): Button[] {
   return [
-    { id: 'play', x: 110, y: 896, w: 320, h: 50, label: '▶ 今すぐプレイ', style: 'primary' },
+    { id: 'play', x: 110, y: 896, w: 320, h: 50, label: `${PLAY_MARK}今すぐプレイ`, style: 'primary' },
     { id: 'sound', x: 12, y: 902, w: 86, h: 38, label: soundOn ? '音: ON' : '音: OFF', style: 'small' },
     { id: 'close', x: 496, y: 16, w: 24, h: 24, label: '✕', style: 'close' },
     { id: 'shop', x: 442, y: 902, w: 86, h: 38, label: 'ショップ', style: 'small' },

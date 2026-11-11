@@ -477,6 +477,8 @@ ${location.origin}${location.pathname}`;
   }
 
   private render(): void {
+    // 指を置く場所の「なぞる溝」は、遊んでいる間だけ出す（CSS の body.finger.playing）
+    document.body.classList.toggle('playing', this.mode === 'play');
     this.renderScreen();
     // 画面が切り替わった直後は、暗いところから明るくする
     const fade = 1 - (this.time - this.fadeAt) / FADE_SECONDS;

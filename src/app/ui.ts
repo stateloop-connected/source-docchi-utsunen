@@ -1,5 +1,5 @@
 // キャンバス上のボタン。タップでもキーボード（フォーカス移動 + 決定）でも押せる。
-import { INK, fancyText, fillRoundRect, gradV, roundRect, text, type Ctx } from '../render/draw.ts';
+import { INK, fancyText, fillRoundRect, gradV, roundRect, text, textWidth, type Ctx } from '../render/draw.ts';
 
 export type ButtonStyle = 'primary' | 'normal' | 'gold' | 'small' | 'close' | 'pause';
 
@@ -12,6 +12,12 @@ export interface Button {
   label: string;
   style: ButtonStyle;
 }
+
+/**
+ * ラベルの頭にこれを付けると、文字の前に「再生」の三角形を描く。
+ * 「▶」の文字をそのまま書くと、端末によっては絵文字（四角いボタンの絵）で描かれるので、図形で描く
+ */
+export const PLAY_MARK = '[play]';
 
 /** 小さいボタンでも指で押せるよう、当たり判定を少し広げる */
 const TOUCH_SLOP = 8;
@@ -69,7 +75,29 @@ export function drawButton(ctx: Ctx, b: Button, look: ButtonLook): void {
         ctx.fill();
         ctx.restore();
       }
-      fancyText(ctx, b.label, 0, 1, { size: b.h * 0.46, top: '#ffffff', bottom: '#eaffd8', stroke: '#0f5a27', maxWidth: b.w - 24 });
+      const size = b.h * 0.46;
+      if (b.label.startsWith(PLAY_MARK)) {
+        const label = b.label.slice(PLAY_MARK.length);
+        const tri = size * 0.78;
+        const gap = size * 0.34;
+        const tw = Math.min(textWidth(ctx, label, size), b.w - 24 - tri - gap);
+        const left = -(tri + gap + tw) / 2;
+        // 文字と同じ太い縁取りで、右向きの三角形を描く
+        ctx.beginPath();
+        ctx.moveTo(left, 1 - tri * 0.58);
+        ctx.lineTo(left + tri, 1);
+        ctx.lineTo(left, 1 + tri * 0.58);
+        ctx.closePath();
+        ctx.lineJoin = 'round';
+        ctx.lineWidth = size * 0.3;
+        ctx.strokeStyle = '#0f5a27';
+        ctx.stroke();
+        ctx.fillStyle = '#ffffff';
+        ctx.fill();
+        fancyText(ctx, label, left + tri + gap + tw / 2, 1, { size, top: '#ffffff', bottom: '#eaffd8', stroke: '#0f5a27', maxWidth: tw });
+      } else {
+        fancyText(ctx, b.label, 0, 1, { size, top: '#ffffff', bottom: '#eaffd8', stroke: '#0f5a27', maxWidth: b.w - 24 });
+      }
       break;
     }
     case 'normal':

@@ -376,7 +376,7 @@ function drawBossAd(c: Ctx): void {
   c.strokeStyle = '#b8b8b8';
   c.lineWidth = 1;
   c.strokeRect(84, 113, 98, 24);
-  text(c, '広告をスキップ ▶ 5', 133, 125.5, { size: 11, weight: 700, maxWidth: 90 });
+  text(c, '広告をスキップ ▷ 5', 133, 125.5, { size: 11, weight: 700, maxWidth: 90 });
   c.fillStyle = '#4c5060';
   c.fillRect(13, 150, 174, 7);
   c.fillStyle = '#ffd23f';

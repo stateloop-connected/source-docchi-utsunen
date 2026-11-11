@@ -81,16 +81,22 @@ body.finger::before {
   pointer-events: none;
 }
 
-/* なぞる溝。左右の矢印で、動かす向きを示す */
-body.finger::after {
-  content: '◀　ここをなぞって動かす　▶';
+/*
+ * なぞる溝。左右の三角形で、動かす向きを示す。遊んでいる間だけ出す（タイトルやリザルトでは、なぞっても何も起きないので出さない）。
+ * 三角形は「◀ ▶」の文字にすると、端末によっては絵文字（四角いボタンの絵）で描かれるので、図形（SVG）で置く
+ */
+body.finger.playing::after {
+  content: 'ここをなぞって動かす';
   position: fixed;
   left: calc(50% - var(--game-width, 100%) * 0.43);
   width: calc(var(--game-width, 100%) * 0.86);
   bottom: calc((var(--finger-area, 0px) - 40px) / 2);
   height: 40px;
   border-radius: 20px;
-  background: #0c0f16;
+  background:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='14'%3E%3Cpath d='M11 1v12L1 7z' fill='%23fff' fill-opacity='.55'/%3E%3C/svg%3E") calc(50% - 96px) center / 12px 14px no-repeat,
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='14'%3E%3Cpath d='M1 1v12l10-6z' fill='%23fff' fill-opacity='.55'/%3E%3C/svg%3E") calc(50% + 96px) center / 12px 14px no-repeat,
+    #0c0f16;
   box-shadow:
     inset 0 2px 5px rgba(0, 0, 0, 0.7),
     0 1px 0 rgba(255, 255, 255, 0.09);
