@@ -30,6 +30,7 @@ export class Session {
     this.state = createGame(seed);
     this.view = new View(seed, sfx);
     this.bot = demo ? createDemoBot(seed) : null;
+    this.view.tips = !demo;
     if (!demo) this.view.announce('スタート！');
   }
 

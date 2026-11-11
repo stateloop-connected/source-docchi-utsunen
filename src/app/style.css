@@ -1,11 +1,11 @@
-/* 画面に収まる最大の 9:16 でキャンバスを置き、余白は黒で埋める */
+/* 画面に収まる最大の 9:16 でキャンバスを置き、余白は暗い色で埋める */
 html,
 body {
   margin: 0;
   width: 100%;
   height: 100%;
   overflow: hidden;
-  background: #000;
+  background: #05070f;
   color: #fff;
   /* タッチ操作でページが拡大・スクロールしないようにする */
   touch-action: none;
@@ -20,9 +20,40 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
+  /* 横長の画面では左右が余るので、真っ黒ではなく、ゲームの夜空に近い色でなじませる */
+  background: radial-gradient(ellipse at center, #1b2548 0%, #0a0f24 55%, #05070f 100%);
 }
 
 canvas {
   display: block;
   touch-action: none;
+  box-shadow: 0 0 60px rgba(0, 0, 0, 0.6);
+}
+
+/* スマホを横にすると画面が小さくなるので、縦向きをすすめる */
+@media (orientation: landscape) and (max-height: 500px) {
+  body::after {
+    content: '縦向きにすると大きく遊べます';
+    position: fixed;
+    left: 12px;
+    bottom: 10px;
+    font: 700 12px sans-serif;
+    color: rgba(255, 255, 255, 0.7);
+    pointer-events: none;
+  }
+}
+
+/* PC の横長の画面では、空いている左の余白に操作を書いておく */
+@media (hover: hover) and (pointer: fine) and (min-aspect-ratio: 4/3) and (min-height: 501px) {
+  body::before {
+    /* \A は改行。直後が 16 進数に読める文字（E など）だと別の文字になるので、空白で区切る */
+    content: 'マウスを動かして狙う\A ← →　A D でも動けます\A Esc か P で一時停止';
+    white-space: pre;
+    position: fixed;
+    left: 24px;
+    bottom: 20px;
+    font: 700 13px/1.9 sans-serif;
+    color: rgba(255, 255, 255, 0.5);
+    pointer-events: none;
+  }
 }

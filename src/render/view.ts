@@ -318,6 +318,10 @@ export class View {
   private lastWave = 1;
   /** この回で、まだ会心を出していない（初めての会心で、ひとこと説明する） */
   private noCritYet = true;
+  /** 遊び方のひとこと（会心の説明）を出すか。デモでは出さない（タイトルの文字と重なるため） */
+  tips = true;
+  /** 画面の揺れと、画面全体が光る演出を止めるか（OS の「視差効果を減らす」に従う） */
+  calm = false;
   private readonly rnd: () => number;
   private readonly sfx: Sfx | null;
 
@@ -361,6 +365,10 @@ export class View {
     this.toasts = this.toasts.filter((t) => this.time - t.start < t.life);
     this.flash = Math.max(0, this.flash - (LOOK.flashAlpha / LOOK.flashTime) * dt);
     this.shakeLeft = Math.max(0, this.shakeLeft - dt);
+    if (this.calm) {
+      this.flash = 0;
+      this.shakeLeft = 0;
+    }
     if (this.warning && this.time >= this.warning.until) this.warning = null;
     if (this.bossIntro && this.time - this.bossIntro.start >= LOOK.bossIntroTime) this.bossIntro = null;
   }
@@ -586,7 +594,7 @@ export class View {
   /** 会心が当たった。初めてのときだけ、何が起きたかをひとこと出す */
   private onCrit(): void {
     this.sfx?.crit();
-    if (!this.noCritYet) return;
+    if (!this.noCritYet || !this.tips) return;
     this.noCritYet = false;
     this.toast('praise', `会心！ 真ん中に当てるとダメージ ${AIM.critMult} 倍`, W / 2, 300, 30, TONE.gold, 1.8);
   }

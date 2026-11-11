@@ -44,13 +44,22 @@ function newSeed(): number {
   return (Date.now() ^ Math.floor(Math.random() * 0x100000000)) >>> 0;
 }
 
+/** OS で「視差効果を減らす」を選んでいる人には、画面の揺れと、画面全体が光る演出を出さない */
+const REDUCED_MOTION = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+function createSession(demo: boolean, sfx: Synth | null): Session {
+  const session = new Session(newSeed(), demo, sfx);
+  session.view.calm = REDUCED_MOTION;
+  return session;
+}
+
 class App {
   private readonly canvas: HTMLCanvasElement;
   private readonly ctx: CanvasRenderingContext2D;
   private readonly synth = new Synth(loadSound());
   private highScore = loadHighScore();
   private mode: Mode = 'title';
-  private session = new Session(newSeed(), true, null);
+  private session = createSession(true, null);
   private pixelScale = 1;
   private time = 0;
   private last = 0;
@@ -118,7 +127,7 @@ class App {
   }
 
   private startDemo(): void {
-    this.session = new Session(newSeed(), true, null);
+    this.session = createSession(true, null);
     this.overAge = 0;
     this.caption = null;
     this.demoPanicked = false;
@@ -132,7 +141,7 @@ class App {
     this.result = null;
     this.message = null;
     this.banner = null;
-    this.session = new Session(newSeed(), false, this.synth);
+    this.session = createSession(false, this.synth);
     this.synth.resume();
     this.synth.startBgm();
   }
@@ -177,6 +186,9 @@ class App {
   private copyResult(): void {
     if (!this.result) return;
     const label = resultText(this.result);
+    // コピーする文字列には、遊べる場所の URL を添える（画面に出すときは添えない）
+    const shared = `${label}
+${location.origin}${location.pathname}`;
     const show = (m: string): void => {
       this.message = { label: m, until: this.time + 2.5 };
     };
@@ -185,7 +197,7 @@ class App {
       show(label);
       return;
     }
-    clip.writeText(label).then(
+    clip.writeText(shared).then(
       () => show('コピーしました'),
       () => show(label),
     );
