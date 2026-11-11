@@ -74,9 +74,13 @@ body.finger::before {
   left: calc(50% - var(--game-width, 100%) / 2);
   width: var(--game-width, 100%);
   bottom: 0;
-  height: var(--finger-area, 0px);
+  /* 画面の高さに端数がある端末では、キャンバスとの間に 1px のすき間ができるので、2px 重ねる */
+  height: calc(var(--finger-area, 0px) + 2px);
   background:
-    radial-gradient(circle, rgba(255, 255, 255, 0.16) 2px, transparent 2.6px) 14px 6px / 56px 12px repeat-x,
+    /* 継ぎ目は、板の縁（明るい線と影）として描く。色が少し違っても、板の合わせ目に見える */
+    linear-gradient(#59617a, #59617a) 0 0 / 100% 2px no-repeat,
+    linear-gradient(rgba(0, 0, 0, 0.45), rgba(0, 0, 0, 0.45)) 0 2px / 100% 2px no-repeat,
+    radial-gradient(circle, rgba(255, 255, 255, 0.16) 2px, transparent 2.6px) 14px 10px / 56px 12px repeat-x,
     linear-gradient(#222631, #12151d);
   pointer-events: none;
 }

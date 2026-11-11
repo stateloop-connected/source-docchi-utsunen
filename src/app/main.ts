@@ -89,6 +89,8 @@ class App {
   private readonly held = { left: false, right: false };
   /** キーで動いている最中か（離した瞬間に止めるために覚えておく） */
   private keyMoving = false;
+  /** 今のキャンバスの置き方が、タイトル以外（指を置く場所をあける）向けか */
+  private inGameLayout = false;
   private message: { label: string; until: number } | null = null;
 
   constructor(canvas: HTMLCanvasElement) {
@@ -107,7 +109,14 @@ class App {
     for (const type of ['pointerup', 'touchend'] as const) window.addEventListener(type, () => this.synth.unlock());
     // ページの拡大・スクロール・長押しメニューを止める
     for (const type of ['touchstart', 'touchmove', 'gesturestart', 'dblclick', 'contextmenu'] as const) {
-      document.addEventListener(type, (e) => e.preventDefault(), { passive: false });
+      // 取り消せない出来事（画面の置き方が変わった直後のタッチなど）で preventDefault を呼ぶと、ブラウザがエラーを出すので確かめてから呼ぶ
+      document.addEventListener(
+        type,
+        (e) => {
+          if (e.cancelable) e.preventDefault();
+        },
+        { passive: false },
+      );
     }
     document.addEventListener('visibilitychange', () => {
       if (document.hidden) {
@@ -459,7 +468,9 @@ ${location.origin}${location.pathname}`;
     const vh = window.innerHeight;
     // 指で遊ぶ縦長の画面では、キャンバスを上に寄せて、下に指を置く場所をあける
     // （真ん中に置くと、指がプレイヤーと武器の表示を隠してしまう）。余りが少なければ、キャンバスを少し縮めて確保する
-    const finger = FINGER_INPUT && vh > vw;
+    // タイトルでは指を置く場所は要らないので、PC と同じく真ん中に置く
+    this.inGameLayout = this.mode !== 'title';
+    const finger = FINGER_INPUT && vh > vw && this.inGameLayout;
     const reserve = finger ? Math.max(FINGER_AREA_MIN, Math.round(vh * FINGER_AREA_RATIO)) : 0;
     const scale = Math.min(vw / W, (vh - reserve) / H);
     const cssW = Math.floor(W * scale);
@@ -479,6 +490,8 @@ ${location.origin}${location.pathname}`;
   private render(): void {
     // 指を置く場所の「なぞる溝」は、遊んでいる間だけ出す（CSS の body.finger.playing）
     document.body.classList.toggle('playing', this.mode === 'play');
+    // タイトルとそれ以外で、キャンバスの置き方が変わる（指を置く場所をあけるかどうか）
+    if ((this.mode !== 'title') !== this.inGameLayout) this.resize();
     this.renderScreen();
     // 画面が切り替わった直後は、暗いところから明るくする
     const fade = 1 - (this.time - this.fadeAt) / FADE_SECONDS;
