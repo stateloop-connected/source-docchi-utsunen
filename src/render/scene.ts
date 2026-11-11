@@ -26,6 +26,10 @@ const MUZZLE_STAGES = new Set([3, 4, 5, 6, 7, 8]);
 const DANGER_RATIO = 0.7;
 /** 埋まり度がこの割合を超えたら、撃てるボムに「今だ！」と目印を付ける */
 const BOMB_HINT_RATIO = 0.5;
+/** 開始からこの秒数のあいだは、間に合わないブロックに「間に合わない」と添える（赤い数字の意味を覚えてもらう） */
+const LATE_HINT_SECONDS = 60;
+/** 弾を大きめに描く、序盤の武器の段階の数 */
+const EARLY_STAGES = 6;
 
 /** 時間帯ごとの遠景（空、街並み、海）と、その上に重ねる橋 */
 let worlds: HTMLCanvasElement[] = [];
@@ -399,7 +403,11 @@ function drawBlocks(ctx: Ctx, s: GameState, v: View): void {
       fancyText(ctx, '▼ 今だ！', cx, bottom - 128 * k - bounce, { size: Math.max(13, 30 * k), top: '#fff7a8', bottom: '#ff9d1a', stroke: '#5a0000' });
     }
     // 残り HP の数字。撃てるブロックは、間に合うなら白、間に合わないなら赤。後ろのブロックは灰色
-    const color = front ? (canBreakInTime(s, b) ? '#ffffff' : '#ff5c5c') : '#c9ced8';
+    const inTime = canBreakInTime(s, b);
+    const color = front ? (inTime ? '#ffffff' : '#ff5c5c') : '#c9ced8';
+    if (front && !inTime && !s.over && s.t < LATE_HINT_SECONDS && b.kind !== 'trap' && b.kind !== 'hat') {
+      text(ctx, '間に合わない', cx, bottom - 122 * k, { size: Math.max(10, 18 * k), weight: 900, color: '#ff8f8f', stroke: INK });
+    }
     const nx = b.kind === 'trap' ? cx : cx + BLOCK_NUMBER.dx * k;
     const size = (b.kind === 'trap' ? 30 : 36) * k;
     text(ctx, formatHp(b.hp), nx, bottom - (b.kind === 'trap' ? 40 : BLOCK_NUMBER.up) * k, {
@@ -500,7 +508,8 @@ function drawBullet(ctx: Ctx, b: Bullet): void {
   const t = clamp(b.age / LOOK.bulletTime, 0, 1);
   const x = lerp(b.x0, b.x1, t);
   const y = lerp(b.y0, b.y1, t);
-  const k = lerp(1, b.k1, t);
+  // 序盤の武器は弾が小さくて見えにくいので、少し大きく描く
+  const k = lerp(1, b.k1, t) * (b.stage < EARLY_STAGES ? 1.35 : 1);
   const dx = b.x1 - b.x0;
   const dy = b.y1 - b.y0;
   const len = Math.hypot(dx, dy) || 1;

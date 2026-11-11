@@ -174,6 +174,17 @@ export function drawPause(ctx: Ctx): void {
   ctx.fillStyle = 'rgba(8,10,24,0.74)';
   ctx.fillRect(0, 0, W, H);
   fancyText(ctx, '一時停止', W / 2, 318, { size: 50, top: '#ffffff', bottom: '#bcd7ff' });
+  // 操作の説明
+  fillRoundRect(ctx, 70, 668, 400, 132, 18, 'rgba(255,255,255,0.1)');
+  const help: readonly (readonly [string, string])[] = [
+    ['指・マウス', '触れた・動かした位置へ動く'],
+    ['← →　A D', '押している間だけ動く'],
+    ['Esc　P', '一時停止'],
+  ];
+  help.forEach(([key, what], i) => {
+    text(ctx, key, 94, 696 + i * 38, { size: 17, weight: 900, align: 'left', color: '#ffe066' });
+    text(ctx, what, 446, 696 + i * 38, { size: 16, weight: 800, align: 'right', color: '#e8eefc', maxWidth: 230 });
+  });
 }
 
 /** age はリザルトを出してからの秒数 */
