@@ -75,6 +75,10 @@ export const LOOK = {
   mowWindow: 0.6,
   mowKills: 6,
   mowCooldown: 2.5,
+  /** 会心を snipeTime 秒続けると「狙い撃ち！」。snipeGap 秒までの途切れは続きとみなす。次に出すまで snipeCooldown 秒あける */
+  snipeTime: 2,
+  snipeGap: 0.2,
+  snipeCooldown: 6,
   /** これより速く動いている間は、足元に砂ぼこりを出す（px/秒） */
   dustSpeed: 260,
 } as const;
@@ -307,6 +311,10 @@ export class View {
   /** 直近に敵を倒した時刻（なぎ倒しの判定用） */
   private killTimes: number[] = [];
   private lastMowAt = -10;
+  /** 会心が続き始めた時刻（続いていなければ負の値）と、最後に会心だった時刻。「狙い撃ち！」の判定用 */
+  private critSince = -1;
+  private lastCritAt = -10;
+  private lastSnipeAt = -10;
   private lastWave = 1;
   /** この回で、まだ会心を出していない（初めての会心で、ひとこと説明する） */
   private noCritYet = true;
@@ -326,6 +334,7 @@ export class View {
     this.updateEnemies(dt, s);
     this.updateBlocks(s);
     this.updateAim(s);
+    this.updateSnipe(s);
     this.updateShooting(dt, s);
     this.updateBullets(dt);
     this.updateRecovery(s);
@@ -507,6 +516,23 @@ export class View {
   /** 画面の中央に、ひとこと大きく出す（開始の合図など） */
   announce(label: string): void {
     this.toast('praise', label, W / 2, 300, 46, TONE.gold, 1.1);
+  }
+
+  /** 会心を続けたら、ひとこと褒める */
+  private updateSnipe(s: GameState): void {
+    if (this.aim.crit && !s.over) {
+      if (this.critSince < 0) this.critSince = this.time;
+      this.lastCritAt = this.time;
+    } else if (this.time - this.lastCritAt > LOOK.snipeGap) {
+      this.critSince = -1;
+    }
+    if (this.critSince < 0 || this.time - this.critSince < LOOK.snipeTime) return;
+    // 続きは数え直す（出しっぱなしにしない）
+    this.critSince = this.time;
+    if (this.time - this.lastSnipeAt < LOOK.snipeCooldown) return;
+    this.lastSnipeAt = this.time;
+    this.toast('praise', '狙い撃ち！', W / 2, 300, 38, TONE.gold, 0.9);
+    this.sfx?.praise();
   }
 
   /** 危機から立て直したら、ひとこと褒める */
