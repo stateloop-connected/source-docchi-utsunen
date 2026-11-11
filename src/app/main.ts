@@ -65,7 +65,9 @@ class App {
   private highScore = loadHighScore();
   private mode: Mode = 'title';
   private session = createSession(true, null);
-  private pixelScale = 1;
+  /** 論理解像度（540×960）から、キャンバスの実際の画素への拡大率。横と縦で別に持つ（下の resize を参照） */
+  private scaleX = 1;
+  private scaleY = 1;
   private time = 0;
   private last = 0;
   /** キーボードで選んでいるボタンの番号。操作するまでは -1（決定キーは主ボタンに効く） */
@@ -484,7 +486,10 @@ ${location.origin}${location.pathname}`;
     const ratio = Math.min(window.devicePixelRatio || 1, MAX_PIXEL_RATIO);
     this.canvas.width = Math.round(cssW * ratio);
     this.canvas.height = Math.round(cssH * ratio);
-    this.pixelScale = this.canvas.width / W;
+    // 横と縦を別々に合わせる。大きさを整数に丸めるので、片方の拡大率だけで描くと、
+    // もう片方が 1 画素ぶん足りず、端の 1 行が塗られないまま残る（差は 0.2% 未満で、見た目には分からない）
+    this.scaleX = this.canvas.width / W;
+    this.scaleY = this.canvas.height / H;
   }
 
   private render(): void {
@@ -503,7 +508,7 @@ ${location.origin}${location.pathname}`;
 
   private renderScreen(): void {
     const ctx = this.ctx;
-    ctx.setTransform(this.pixelScale, 0, 0, this.pixelScale, 0, 0);
+    ctx.setTransform(this.scaleX, 0, 0, this.scaleY, 0, 0);
     const { state, view } = this.session;
     drawScene(ctx, state, view);
     drawHud(ctx, state, view, { demo: this.mode === 'title' });
