@@ -1,10 +1,10 @@
 // 起動、画面遷移、入力、毎フレームの更新と描画（仕様書 6.6 節・6.8 節・8.2 節）。
 import { Synth } from '../audio/synth.ts';
-import { B, RUSH_START, type Lane } from '../core/balance.ts';
+import { AIM, B, RUSH_START } from '../core/balance.ts';
 import { estimatedIq, waveOf, weaponName } from '../core/formulas.ts';
 import type { GameEvent } from '../core/state.ts';
 import { drawHud } from '../render/hud.ts';
-import { H, W } from '../render/projection.ts';
+import { CENTER_X, H, HALF_ROAD, W } from '../render/projection.ts';
 import { drawScene, initScene } from '../render/scene.ts';
 import { initSprites } from '../render/sprites.ts';
 import {
@@ -58,6 +58,9 @@ class App {
   private closePressedAt = -10;
   private result: ResultStats | null = null;
   private resultAt = 0;
+  private readonly held = { left: false, right: false };
+  /** キーで動いている最中か（離した瞬間に止めるために覚えておく） */
+  private keyMoving = false;
   private message: { label: string; until: number } | null = null;
 
   constructor(canvas: HTMLCanvasElement) {
@@ -66,6 +69,10 @@ class App {
     this.resize();
     window.addEventListener('resize', () => this.resize());
     window.addEventListener('keydown', (e) => this.onKey(e));
+    window.addEventListener('keyup', (e) => this.onKeyUp(e));
+    window.addEventListener('blur', () => this.releaseKeys());
+    // マウスは動かすだけで、指は触れている間、その横位置を狙う
+    window.addEventListener('pointermove', (e) => this.onPointerMove(e));
     // 余白（キャンバスの外の黒い部分）を押してもレーンを切り替えられるよう、画面全体で受ける
     window.addEventListener('pointerdown', (e) => this.onPointer(e));
     // iOS は指を離したときの操作でないと音を出せないことがあるので、離したときにも有効化を試みる
@@ -208,8 +215,40 @@ class App {
     }
   }
 
-  private setWant(lane: Lane): void {
-    if (this.mode === 'play') this.session.want = lane;
+  /** 画面の x（論理解像度）を、立ちたい横位置にする */
+  private aimAt(x: number): void {
+    if (this.mode === 'play') this.session.aim = (x - CENTER_X) / HALF_ROAD;
+  }
+
+  private logicalX(e: PointerEvent): number {
+    const rect = this.canvas.getBoundingClientRect();
+    return ((e.clientX - rect.left) / rect.width) * W;
+  }
+
+  private onPointerMove(e: PointerEvent): void {
+    if (e.pointerType === 'mouse' || e.buttons > 0 || e.pressure > 0) this.aimAt(this.logicalX(e));
+  }
+
+  private releaseKeys(): void {
+    this.held.left = false;
+    this.held.right = false;
+  }
+
+  private onKeyUp(e: KeyboardEvent): void {
+    const key = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+    if (key === 'ArrowLeft' || key === 'a') this.held.left = false;
+    else if (key === 'ArrowRight' || key === 'd') this.held.right = false;
+  }
+
+  /** キーを押している間はその向きへ動き続け、離したらその場で止まる */
+  private applyKeys(): void {
+    if (this.held.left !== this.held.right) {
+      this.session.aim = this.held.left ? AIM.minX : AIM.maxX;
+      this.keyMoving = true;
+    } else if (this.keyMoving) {
+      this.session.aim = this.session.state.player.x;
+      this.keyMoving = false;
+    }
   }
 
   private onPointer(e: PointerEvent): void {
@@ -223,8 +262,8 @@ class App {
       this.focus = -1;
       this.press(b.id);
     } else {
-      // ボタン以外は、左半分で敵レーン、右半分で強化レーン
-      this.setWant(x < W / 2 ? 'enemy' : 'block');
+      // ボタン以外は、押した横位置を狙う
+      this.aimAt(x);
     }
   }
 
@@ -234,9 +273,8 @@ class App {
     const key = e.key.length === 1 ? e.key.toLowerCase() : e.key;
     let handled = true;
     if (this.mode === 'play') {
-      if (key === 'ArrowLeft' || key === 'a') this.setWant('enemy');
-      else if (key === 'ArrowRight' || key === 'd') this.setWant('block');
-      else if (key === ' ') this.setWant(this.session.want === 'enemy' ? 'block' : 'enemy');
+      if (key === 'ArrowLeft' || key === 'a') this.held.left = true;
+      else if (key === 'ArrowRight' || key === 'd') this.held.right = true;
       else if (key === 'Escape' || key === 'p') this.pause();
       else handled = false;
     } else {
@@ -282,6 +320,7 @@ class App {
         if (this.overAge >= FAIL_SECONDS) this.startDemo();
       }
     } else if (this.mode === 'play') {
+      this.applyKeys();
       this.session.advance(dt);
       const rush = s.t % B.waveLength >= RUSH_START;
       this.synth.update(waveOf(s.t), rush, s.fill / s.capacity);

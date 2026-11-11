@@ -8,6 +8,8 @@ export interface RngState {
 export const SPAWN_SALT = 0x9e3779b9;
 /** ボット用の乱数列の種 = seed + BOT_SALT */
 export const BOT_SALT = 0x85ebca6b;
+/** 敵の横位置用の乱数列の種 = seed + POSITION_SALT */
+export const POSITION_SALT = 0xc2b2ae35;
 
 export function seedRng(seed: number): RngState {
   return { a: seed >>> 0 };

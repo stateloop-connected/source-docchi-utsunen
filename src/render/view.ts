@@ -1,12 +1,12 @@
 // 見た目だけの状態（敵の位置、弾、ダメージの数字、破片、演出のタイマー）。
 // ロジックの状態を読むだけで、ロジックには影響を与えない（仕様書 6 章・7 章）。
-import { B, type BlockKind, type EnemyKind, type Lane } from '../core/balance.ts';
+import { AIM, B, type BlockKind, type EnemyKind, type Lane } from '../core/balance.ts';
 import { bossName, dpsOf, fireRate, weaponName, weaponStage } from '../core/formulas.ts';
 import { mulberry32 } from '../core/rng.ts';
-import type { Enemy, GameEvent, GameState } from '../core/state.ts';
+import { sideOf, type Enemy, type GameEvent, type GameState } from '../core/state.ts';
 import { clamp } from './draw.ts';
 import { formatNumber } from './format.ts';
-import { BLOCK_LANE, ENEMY_LANE, HALF_ROAD, kOf, xOf, yOf } from './projection.ts';
+import { W, kOf, xOf, yOf } from './projection.ts';
 import { BLOCK_COLORS, ENEMY_COLORS, NOTICE_VARIANTS, WEAPON_SPRITE, sprite } from './sprites.ts';
 
 /** 効果音の出口。デモ中は null を渡して鳴らさない */
@@ -53,7 +53,7 @@ export const LOOK = {
   bombWaveTime: 0.45,
   /** プレイヤーの足元の y */
   playerBottom: 904,
-  /** 武器を持つ手の位置（プレイヤーの中心からの x、足元からの高さ） */
+  /** 武器を持つ手の位置（体の中心からの x、足元からの高さ）。弾の列は武器の位置に合わせる */
   weaponDx: 29,
   weaponUp: 34,
   /** 通過までこの秒数を切ってから壊すと「ギリギリ！」 */
@@ -62,6 +62,15 @@ export const LOOK = {
   recoverFrom: 0.8,
   recoverTo: 0.5,
 } as const;
+
+/** 敵の種類ごとの絵の倍率。当たり判定の幅（balance.ts の halfWidth）に見た目を合わせる */
+const ENEMY_SCALE: Readonly<Record<EnemyKind | 'boss', number>> = {
+  notice: 1.3,
+  spam: 1,
+  deadline: 1.2,
+  revolving: 1.2,
+  boss: 1,
+};
 
 export interface EnemyVis {
   u: number;
@@ -97,7 +106,7 @@ export interface FloatNumber {
   y: number;
   age: number;
   label: string;
-  /** 強化レーンへのダメージか（色を変える） */
+  /** 強化ブロックへのダメージか（色を変える） */
   block: boolean;
   tilt: number;
 }
@@ -144,12 +153,27 @@ export interface Toast {
   life: number;
 }
 
+/** 弾の列が今当たっている先 */
 export interface Aim {
   x: number;
   y: number;
   k: number;
+  /** 当たっている先の奥行き。何もなければ 1（地平線） */
+  z: number;
   /** 標的がある（数字を出す）か、何もない地平線か */
   hit: boolean;
+  /** 当たっている敵の通し番号。敵でなければ 0 */
+  enemyId: number;
+  /** 当たっているブロックの通し番号。ブロックでなければ 0 */
+  blockId: number;
+}
+
+/** ブロックの直近の位置と残り時間（壊れた・通過したときの演出用） */
+interface BlockSpot {
+  x: number;
+  y: number;
+  k: number;
+  left: number;
 }
 
 const EFFECT_LABEL: Readonly<Record<BlockKind, string>> = {
@@ -174,23 +198,19 @@ const EFFECT_TONE: Readonly<Record<BlockKind, Tone>> = {
   hat: TONE.pink,
 };
 
-export function laneX(lane: Lane): number {
-  return xOf(lane === 'enemy' ? ENEMY_LANE.center : BLOCK_LANE.center, 0);
-}
-
-/** プレイヤーの今の x。切り替え中は 2 つのレーンの間を滑る */
+/** プレイヤーの弾の列の、手前での x */
 export function playerX(s: GameState): number {
-  const p = s.player;
-  const to = laneX(p.lane);
-  if (p.switchLeft <= 0) return to;
-  const from = laneX(p.lane === 'enemy' ? 'block' : 'enemy');
-  const t = clamp(1 - p.switchLeft / B.switchTime, 0, 1);
-  return from + (to - from) * t * (2 - t);
+  return xOf(s.player.x, 0);
 }
 
 export function enemySpriteId(kind: EnemyKind | 'boss', variant: number, bossIndex: number): string {
   if (kind === 'boss') return `boss.${(bossIndex - 1) % 4}`;
   return kind === 'notice' ? `enemy.notice.${variant}` : `enemy.${kind}`;
+}
+
+/** ブロックの奥行き（0 が手前、1 が地平線） */
+export function blockZ(s: GameState, passAt: number): number {
+  return clamp((passAt - s.t) / B.blockTravel, 0, 1);
 }
 
 export class View {
@@ -209,21 +229,20 @@ export class View {
   bossIntro: { name: string; start: number } | null = null;
   /** ゲームオーバーになった時刻。なければ負 */
   overAt = -1;
-  /** 先頭のブロック・先頭の敵に最後に弾が当たった時刻 */
+  /** ブロック・敵に最後に弾が当たった時刻 */
   blockHitAt = -1;
   enemyHitAt = -1;
   /** 最後に発射した時刻（武器の反動と銃口の光用） */
   shotAt = -1;
   /** 最後にランクが上がった時刻（プレイヤーが光る） */
   rankUpAt = -10;
-  /** 今撃っているか（切り替え中・ゲームオーバー後は偽） */
+  /** 今撃っているか（ゲームオーバー後は偽） */
   shooting = false;
-  aim: Aim = { x: 0, y: 0, k: 1, hit: false };
-  /** 先頭のブロックの直近の位置と残り時間（壊れたときの演出用） */
-  private frontBlock = { x: laneX('block'), y: yOf(0.5), k: kOf(0.5), left: 0 };
+  aim: Aim = { x: 0, y: 0, k: 1, z: 1, hit: false, enemyId: 0, blockId: 0 };
+  private readonly blockSpots = new Map<number, BlockSpot>();
   private fireAcc = 0;
   private lastFlashAt = -1;
-  private px = laneX('enemy');
+  private px = W / 2;
   /** 埋まり度が recoverFrom を超えたまま、まだ持ち直していない */
   private inDanger = false;
   private readonly rnd: () => number;
@@ -240,6 +259,7 @@ export class View {
     this.time += dt;
     this.px = playerX(s);
     this.updateEnemies(dt, s);
+    this.updateBlocks(s);
     this.updateAim(s);
     this.updateShooting(dt, s);
     this.updateBullets(dt);
@@ -263,19 +283,13 @@ export class View {
   private newEnemyVis(e: Enemy): EnemyVis {
     const variant = Math.floor(this.rnd() * NOTICE_VARIANTS.length);
     const spriteId = enemySpriteId(e.kind, variant, e.bossIndex);
-    // スプライトが道からはみ出さないよう、幅の半分だけ内側に寄せる
-    const margin = Math.min(0.4, sprite(spriteId).w / 2 / HALF_ROAD);
-    const lo = ENEMY_LANE.min + margin;
-    const hi = ENEMY_LANE.max - margin;
-    const u = e.kind === 'boss' ? ENEMY_LANE.center : lo + (hi - lo) * this.rnd();
-    return { u, z: 1, variant, phase: this.rnd() * Math.PI * 2, x: xOf(u, 1), y: yOf(1), scale: kOf(1), spriteId, age: 0 };
+    return { u: e.u, z: 1, variant, phase: this.rnd() * Math.PI * 2, x: xOf(e.u, 1), y: yOf(1), scale: kOf(1), spriteId, age: 0 };
   }
 
   private updateEnemies(dt: number, s: GameState): void {
     let ahead = 0;
     const move = LOOK.enemySpeed * dt;
-    for (let i = s.head; i < s.enemies.length; i++) {
-      const e = s.enemies[i]!;
+    for (const e of s.enemies) {
       let v = this.enemies.get(e.id);
       if (!v) {
         v = this.newEnemyVis(e);
@@ -286,43 +300,52 @@ export class View {
       v.z = v.z > target ? Math.max(target, v.z - move) : Math.min(target, v.z + move);
       ahead += e.size;
       const grow = e.kind === 'revolving' ? 1 + (LOOK.revolvingMaxScale - 1) * clamp((s.t - e.born) / B.revolvingTime, 0, 1) : 1;
-      v.scale = kOf(v.z) * grow;
+      v.scale = kOf(v.z) * grow * ENEMY_SCALE[e.kind];
       v.x = xOf(v.u, v.z);
       v.y = yOf(v.z);
     }
   }
 
-  private updateAim(s: GameState): void {
-    const b = s.blocks[0];
-    if (b) {
-      const z = clamp((b.passAt - s.t) / B.blockTravel, 0, 1);
+  private updateBlocks(s: GameState): void {
+    for (const b of s.blocks) {
+      const z = blockZ(s, b.passAt);
       const k = kOf(z);
-      this.frontBlock = { x: xOf(BLOCK_LANE.center, z), y: yOf(z) - 48 * k, k, left: b.passAt - s.t };
+      this.blockSpots.set(b.id, { x: xOf(b.u, z), y: yOf(z) - 48 * k, k, left: b.passAt - s.t });
     }
-    const lane = s.player.lane;
-    if (lane === 'enemy') {
-      const front = s.head < s.enemies.length ? this.enemies.get(s.enemies[s.head]!.id) : undefined;
-      if (front) {
-        const h = sprite(front.spriteId).h * front.scale;
-        this.aim = { x: front.x, y: front.y - h / 2, k: front.scale, hit: true };
-        return;
-      }
-    } else if (b) {
-      this.aim = { x: this.frontBlock.x, y: this.frontBlock.y, k: this.frontBlock.k, hit: true };
-      return;
-    }
-    // 標的がなければ、弾は地平線まで飛んで消える
-    const u = lane === 'enemy' ? ENEMY_LANE.center : BLOCK_LANE.center;
-    this.aim = { x: xOf(u, 1), y: yOf(1), k: kOf(1), hit: false };
+    // 消えたブロックの位置は、出来事（破壊・通過）で使ったあと handle が捨てる
   }
 
-  /** 銃口の位置 */
+  /** 弾の列が当たっている先を求める。当たり方はロジック（step の手順 8）と同じ */
+  private updateAim(s: GameState): void {
+    const u = s.player.x;
+    if (sideOf(u) === 'enemy') {
+      const e = s.enemies.find((o) => Math.abs(o.u - u) <= o.halfWidth + AIM.beamHalf);
+      const vis = e ? this.enemies.get(e.id) : undefined;
+      if (e && vis) {
+        const h = sprite(vis.spriteId).h * vis.scale;
+        this.aim = { x: xOf(u, vis.z), y: vis.y - h / 2, k: kOf(vis.z), z: vis.z, hit: true, enemyId: e.id, blockId: 0 };
+        return;
+      }
+    } else {
+      const b = s.blocks.find((o) => Math.abs(o.u - u) <= AIM.blockHalf + AIM.beamHalf);
+      if (b) {
+        const z = blockZ(s, b.passAt);
+        const k = kOf(z);
+        this.aim = { x: xOf(u, z), y: yOf(z) - 48 * k, k, z, hit: true, enemyId: 0, blockId: b.id };
+        return;
+      }
+    }
+    // 標的がなければ、弾は地平線まで飛んで消える
+    this.aim = { x: xOf(u, 1), y: yOf(1), k: kOf(1), z: 1, hit: false, enemyId: 0, blockId: 0 };
+  }
+
+  /** 銃口の位置。弾の列の真下にある */
   muzzle(): { x: number; y: number } {
-    return { x: this.px + LOOK.weaponDx, y: LOOK.playerBottom - LOOK.weaponUp - WEAPON_SPRITE.h + 4 };
+    return { x: this.px, y: LOOK.playerBottom - LOOK.weaponUp - WEAPON_SPRITE.h + 4 };
   }
 
   private updateShooting(dt: number, s: GameState): void {
-    this.shooting = !s.over && s.player.switchLeft <= 0;
+    this.shooting = !s.over;
     if (!this.shooting) {
       this.fireAcc = 0;
       return;
@@ -338,7 +361,7 @@ export class View {
 
   private fire(s: GameState, damage: number): void {
     const stage = weaponStage(s.player.rank);
-    const lane = s.player.lane;
+    const lane = sideOf(s.player.x);
     const { x, y } = this.muzzle();
     const a = this.aim;
     this.shotAt = this.time;
@@ -354,11 +377,11 @@ export class View {
     };
     if (stage === 5) {
       // ショットガンは扇状に 5 発。数字は真ん中の 1 発だけが出す
-      for (let i = -2; i <= 2; i++) add(i * 16 * a.k, i === 0 ? damage : 0);
+      for (let i = -2; i <= 2; i++) add(i * 12 * a.k, i === 0 ? damage : 0);
     } else if (stage === 2) {
-      add((this.rnd() - 0.5) * 60 * a.k, damage);
+      add((this.rnd() - 0.5) * 36 * a.k, damage);
     } else {
-      add((this.rnd() - 0.5) * 14 * a.k, damage);
+      add((this.rnd() - 0.5) * 12 * a.k, damage);
     }
   }
 
@@ -377,7 +400,7 @@ export class View {
       this.inDanger = true;
     } else if (this.inDanger && ratio < LOOK.recoverTo && !s.over) {
       this.inDanger = false;
-      this.toast('praise', '持ち直した！', laneX('enemy'), 700, 34, TONE.green, 1.0);
+      this.toast('praise', '持ち直した！', W / 2, 700, 34, TONE.green, 1.0);
       this.sfx?.praise();
     }
   }
@@ -387,7 +410,7 @@ export class View {
     if (this.numbers.length >= LOOK.maxNumbers) this.numbers.shift();
     this.numbers.push({
       x: x + (this.rnd() - 0.5) * 34,
-      y: y - (lane === 'block' ? 66 : 26) * k + (this.rnd() - 0.5) * 12,
+      y: y - (lane === 'block' ? 66 : 30) * k + (this.rnd() - 0.5) * 12,
       age: 0,
       label: formatNumber(damage),
       block: lane === 'block',
@@ -457,7 +480,7 @@ export class View {
             this.shakeLeft = LOOK.bossShakeTime;
             this.flashScreen();
           } else {
-            this.burst(v.x, cy, e.byBomb ? 2 : 5, e.byBomb ? '#ffffff' : ENEMY_COLORS[e.kind], 150 * v.scale + 40, 0.42, 7 * v.scale + 1.5);
+            this.burst(v.x, cy, e.byBomb ? 2 : 6, e.byBomb ? '#ffffff' : ENEMY_COLORS[e.kind], 150 * v.scale + 40, 0.42, 6 * v.scale + 1.5);
             if (!e.byBomb) {
               this.ring(v.x, cy, h * 0.9 + 6, '#ffffff');
               this.sfx?.kill();
@@ -466,43 +489,53 @@ export class View {
           break;
         }
         case 'blockBreak': {
-          const f = this.frontBlock;
-          this.burst(f.x, f.y, 18, BLOCK_COLORS[e.kind], 260 * f.k + 60, 0.6, 12 * f.k + 2);
-          this.burst(f.x, f.y, 8, '#ffffff', 200 * f.k + 40, 0.4, 6 * f.k + 2);
-          this.ring(f.x, f.y, 150 * f.k + 20, BLOCK_COLORS[e.kind]);
-          this.toast('effect', EFFECT_LABEL[e.kind], 270, 352, e.kind === 'trap' ? 46 : 38, EFFECT_TONE[e.kind], 0.9);
+          const f = this.blockSpots.get(e.id);
+          this.blockSpots.delete(e.id);
+          if (f) {
+            this.burst(f.x, f.y, 18, BLOCK_COLORS[e.kind], 260 * f.k + 60, 0.6, 12 * f.k + 2);
+            this.burst(f.x, f.y, 8, '#ffffff', 200 * f.k + 40, 0.4, 6 * f.k + 2);
+            this.ring(f.x, f.y, 150 * f.k + 20, BLOCK_COLORS[e.kind]);
+          }
+          this.toast('effect', EFFECT_LABEL[e.kind], W / 2, 352, e.kind === 'trap' ? 46 : 38, EFFECT_TONE[e.kind], 0.9);
           this.sfx?.blockBreak();
           if (e.kind === 'trap') {
-            this.burst(f.x, f.y, 14, 'rgba(220,40,40,0.8)', 120, 0.9, 16, -60);
-            this.burst(xOf(ENEMY_LANE.center, 1), yOf(1), 14, 'rgba(220,40,40,0.8)', 70, 1.0, 10, -40);
+            if (f) this.burst(f.x, f.y, 14, 'rgba(220,40,40,0.8)', 120, 0.9, 16, -60);
+            this.burst(xOf(0, 1), yOf(1), 14, 'rgba(220,40,40,0.8)', 70, 1.0, 10, -40);
             this.sfx?.trap();
-          } else {
-            if (e.kind === 'bomb') {
-              this.bombWaveAt = this.time;
-              this.sfx?.bomb();
-            }
-            // 通過ぎりぎりで壊し切ったら褒める（罠は褒めない）
-            if (f.left < LOOK.closeCall) {
-              this.toast('praise', 'ギリギリ！', laneX('block'), 760, 34, TONE.gold, 0.9);
-              this.sfx?.praise();
-            }
+            break;
+          }
+          if (e.kind === 'bomb') {
+            this.bombWaveAt = this.time;
+            this.sfx?.bomb();
+          }
+          // うまく取れたら褒める（罠は褒めない）。両取りを優先
+          if (e.double) {
+            this.toast('praise', '両取り！', W / 2, 300, 40, TONE.gold, 1.0);
+            this.sfx?.praise();
+          } else if (f && f.left < LOOK.closeCall) {
+            this.toast('praise', 'ギリギリ！', W / 2, 300, 34, TONE.gold, 0.9);
+            this.sfx?.praise();
           }
           break;
         }
         case 'rankUp':
           this.flashScreen();
           this.rankUpAt = this.time;
-          this.burst(this.px, LOOK.playerBottom - 50, 16, '#ffe066', 260, 0.7, 6, -120);
-          this.ring(this.px, LOOK.playerBottom - 46, 110, '#ffe066');
-          if (e.stageChanged) this.toast('weapon', weaponName(e.rank), 270, 440, 54, TONE.gold, 1.0);
+          this.burst(this.px - LOOK.weaponDx, LOOK.playerBottom - 50, 16, '#ffe066', 260, 0.7, 6, -120);
+          this.ring(this.px - LOOK.weaponDx, LOOK.playerBottom - 46, 110, '#ffe066');
+          if (e.stageChanged) this.toast('weapon', weaponName(e.rank), W / 2, 440, 54, TONE.gold, 1.0);
           this.sfx?.rankUp(e.stageChanged);
           break;
-        case 'blockPass':
-          if (e.damaged) {
-            this.toast('miss', '惜しい！', laneX('block'), 790, 36, TONE.red, 0.8);
+        case 'blockPass': {
+          const f = this.blockSpots.get(e.id);
+          this.blockSpots.delete(e.id);
+          // 役に立つブロックを半分以上削ってから逃したときだけ「惜しい！」
+          if (isNearMiss(e.kind, e.left)) {
+            this.toast('miss', '惜しい！', f ? clamp(f.x, 90, W - 90) : W / 2, 790, 36, TONE.red, 0.8);
             this.sfx?.miss();
           }
           break;
+        }
         case 'rushWarning':
           this.warning = { boss: false, name: '', until: this.time + LOOK.warningTime };
           this.sfx?.rushWarning();
@@ -515,7 +548,7 @@ export class View {
           this.bossIntro = { name: bossName(e.index), start: this.time };
           break;
         case 'bossKill':
-          this.toast('effect', `${bossName(e.index)} 撃破！`, 270, 352, 40, TONE.gold, 1.4);
+          this.toast('effect', `${bossName(e.index)} 撃破！`, W / 2, 352, 40, TONE.gold, 1.4);
           this.sfx?.bossKill();
           break;
         case 'gameOver':
@@ -529,3 +562,10 @@ export class View {
     }
   }
 }
+
+/** 「惜しい」取り逃しか。罠と帽子は数えず、半分以上削っていたものだけを数える */
+export function isNearMiss(kind: BlockKind, left: number): boolean {
+  return kind !== 'trap' && kind !== 'hat' && left < NEAR_MISS_LEFT;
+}
+
+const NEAR_MISS_LEFT = 0.5;

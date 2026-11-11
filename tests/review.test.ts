@@ -10,7 +10,8 @@ describe('リザルトの称号とひとこと', () => {
     s.missed.rank = 3;
     s.missed.gold = 1;
     s.missed.bomb = 9;
-    expect(reviewPlay(s, 0.5, 0)).toMatchObject({ taken: 11, offered: 15 });
+    s.doubles = 4;
+    expect(reviewPlay(s, 0.5, 0)).toMatchObject({ taken: 11, offered: 15, doubles: 4 });
   });
 
   it('強化レーンに寄せすぎると「欲張りさん」、敵ばかりだと「慎重派」', () => {
@@ -31,6 +32,9 @@ describe('リザルトの称号とひとこと', () => {
     const boss = createGame(1);
     boss.bossesKilled = 3;
     expect(reviewPlay(boss, 0.5, 0).title).toBe('ボスキラー');
+    const pair = createGame(1);
+    pair.doubles = 10;
+    expect(reviewPlay(pair, 0.8, 0).title).toBe('両取り名人');
   });
 
   it('ランクアップをほぼ取り切ると「強化の鬼」、どれでもなければ「バランス型」', () => {

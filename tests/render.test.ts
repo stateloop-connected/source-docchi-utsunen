@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { formatComma, formatHp, formatNumber } from '../src/render/format.ts';
+import { AIM } from '../src/core/balance.ts';
 import { dpsOf } from '../src/core/formulas.ts';
 import { createGame } from '../src/core/state.ts';
 import { FRONT_Y, HORIZON_Y, kOf, xOf, yOf } from '../src/render/projection.ts';
@@ -59,25 +60,27 @@ describe('遠近法', () => {
   });
 });
 
-describe('先頭ブロックの「間に合う」表示', () => {
-  const game = (lane: 'enemy' | 'block', secondsOfDamage: number, secondsLeft: number) => {
+describe('ブロックの「間に合う」表示', () => {
+  const RIGHT = AIM.blockCols[1];
+  const game = (x: number, secondsOfDamage: number, secondsLeft: number) => {
     const s = createGame(1);
-    s.player.lane = lane;
-    s.blocks.push({ id: 1, kind: 'rank', hp: dpsOf(0) * secondsOfDamage, maxHp: 140, passAt: s.t + secondsLeft });
+    s.player.x = x;
+    s.blocks.push({ id: 1, kind: 'rank', hp: dpsOf(0) * secondsOfDamage, maxHp: 140, passAt: s.t + secondsLeft, row: 1, col: 1, u: RIGHT });
     return s;
   };
 
-  it('必要な秒数が残り秒数以下なら間に合う', () => {
-    expect(canBreakInTime(game('block', 3, 3.1))).toBe(true);
-    expect(canBreakInTime(game('block', 3, 2.9))).toBe(false);
+  it('その列に立っていれば、撃つ時間が残り秒数以下なら間に合う', () => {
+    const ok = game(RIGHT, 3, 3.1);
+    expect(canBreakInTime(ok, ok.blocks[0]!)).toBe(true);
+    const late = game(RIGHT, 3, 2.9);
+    expect(canBreakInTime(late, late.blocks[0]!)).toBe(false);
   });
 
-  it('敵レーンにいるときは、切り替えの 0.15 秒を足して判定する', () => {
-    expect(canBreakInTime(game('enemy', 3, 3.1))).toBe(false);
-    expect(canBreakInTime(game('enemy', 3, 3.2))).toBe(true);
-  });
-
-  it('ブロックがなければ偽', () => {
-    expect(canBreakInTime(createGame(1))).toBe(false);
+  it('離れているときは、そこまで移動する時間を足して判定する', () => {
+    // 真ん中から右の列まで 0.76 ÷ 3 = 約 0.25 秒
+    const late = game(0, 3, 3.2);
+    expect(canBreakInTime(late, late.blocks[0]!)).toBe(false);
+    const ok = game(0, 3, 3.3);
+    expect(canBreakInTime(ok, ok.blocks[0]!)).toBe(true);
   });
 });

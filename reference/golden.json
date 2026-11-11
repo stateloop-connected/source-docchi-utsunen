@@ -1,5 +1,5 @@
 {
- "note": "単体テスト用の期待値。mulberry32 と deck は完全一致、formulas/boss/dps は相対誤差 1e-9 以内で一致すること。sim_reference は参考値(完全一致は求めない)。",
+ "note": "単体テスト用の期待値。mulberry32 と rows は完全一致、formulas/boss/dps は相対誤差 1e-9 以内で一致すること。sim_reference は参考値(完全一致は求めない)。",
  "mulberry32": {
   "0": [
    0.26642920868471265,
@@ -20,96 +20,96 @@
   {
    "t": 0,
    "wave": 1,
-   "phi": 0.3,
+   "phi": 0.26,
    "d_ref": 40.0,
    "size_rate": 3.0,
-   "base_hp": 4.0
+   "base_hp": 3.466666666666667
   },
   {
    "t": 30,
    "wave": 2,
-   "phi": 0.33221504151838,
+   "phi": 0.2931491814106377,
    "d_ref": 89.21902521501508,
    "size_rate": 3.6,
-   "base_hp": 8.233306157232118
+   "base_hp": 7.265134502232422
   },
   {
    "t": 60,
    "wave": 4,
-   "phi": 0.36788944603686313,
+   "phi": 0.33052477908356526,
    "d_ref": 199.00086150793743,
    "size_rate": 4.2,
-   "base_hp": 20.112724368410333
+   "base_hp": 17.12883223628911
   },
   {
    "t": 120,
    "wave": 7,
-   "phi": 0.4511421483510335,
+   "phi": 0.4201793445701523,
    "d_ref": 990.0335720225326,
    "size_rate": 5.4,
-   "base_hp": 80.56382983800377
+   "base_hp": 72.11833303930052
   },
   {
    "t": 180,
    "wave": 10,
-   "phi": 0.5532347834691402,
+   "phi": 0.5341526347674108,
    "d_ref": 4925.438343856612,
    "size_rate": 6.6,
-   "base_hp": 403.09523900208774
+   "base_hp": 375.405677065722
   },
   {
    "t": 240,
    "wave": 13,
-   "phi": 0.6784307933959531,
+   "phi": 0.6790410830900107,
    "d_ref": 24504.16184329238,
    "size_rate": 7.8,
-   "base_hp": 2080.8848153086547
+   "base_hp": 2008.9809086798236
   },
   {
    "t": 300,
    "wave": 16,
-   "phi": 0.8319584291892893,
+   "phi": 0.8632303999115023,
    "d_ref": 121908.7329336277,
    "size_rate": 8.0,
-   "base_hp": 12377.806703199985
+   "base_hp": 12388.138902246355
   },
   {
    "t": 360,
    "wave": 19,
-   "phi": 1.020229085467155,
+   "phi": 1.0973809124191036,
    "d_ref": 606498.5719783241,
    "size_rate": 8.0,
-   "base_hp": 75515.26240043332
+   "base_hp": 78348.68417591054
   },
   {
    "t": 420,
    "wave": 22,
-   "phi": 1.2511050436106907,
+   "phi": 1.3950445524917134,
    "d_ref": 3017343.4581755097,
    "size_rate": 8.0,
-   "base_hp": 460708.0230079897
+   "base_hp": 495515.61865224823
   }
  ],
  "boss": [
   {
    "wave": 5,
    "t": 95,
-   "hp": 1471.6857971858542
+   "hp": 1350.274224231693
   },
   {
    "wave": 10,
    "t": 195,
-   "hp": 29977.82807246232
+   "hp": 29205.50446335367
   },
   {
    "wave": 15,
    "t": 295,
-   "hp": 610639.9733289123
+   "hp": 631695.0110221544
   },
   {
    "wave": 20,
    "t": 395,
-   "hp": 12438565.46664448
+   "hp": 13663129.40942294
   }
  ],
  "dps": [
@@ -134,286 +134,534 @@
    "dps": 2253900.5741266664
   }
  ],
- "deck": {
+ "rows": {
   "0": [
-   "rank",
-   "rank",
-   "rank",
-   "rank",
-   "rank",
-   "gold",
-   "bomb",
-   "bomb",
-   "rank",
-   "vacation",
-   "rank",
-   "rank",
-   "rank",
-   "rank",
-   "rank",
-   "rank",
-   "trap",
-   "rank",
-   "buddy",
-   "trap",
-   "hat",
-   "rank",
-   "rank",
-   "rank",
-   "rank",
-   "rank",
-   "rank",
-   "rank",
-   "bomb",
-   "buddy",
-   "rank",
-   "bomb",
-   "rank",
-   "bomb",
-   "rank",
-   "rank",
-   "rank",
-   "rank",
-   "bomb",
-   "rank",
-   "rank",
-   "rank",
-   "buddy",
-   "rank",
-   "hat",
-   "rank",
-   "rank",
-   "rank",
-   "trap",
-   "rank",
-   "trap",
-   "expand",
-   "rank",
-   "rank",
-   "rank",
-   "rank",
-   "gold",
-   "rank",
-   "vacation",
-   "rank",
-   "rank"
+   [
+    "rank"
+   ],
+   [
+    "trap",
+    "rank"
+   ],
+   [
+    "trap",
+    "rank"
+   ],
+   [
+    "trap",
+    "hat"
+   ],
+   [
+    "trap",
+    "rank"
+   ],
+   [
+    "rank",
+    "vacation"
+   ],
+   [
+    "bomb",
+    "hat"
+   ],
+   [
+    "rank",
+    "trap"
+   ],
+   [
+    "rank",
+    "trap"
+   ],
+   [
+    "rank",
+    "trap"
+   ],
+   [
+    "expand",
+    "trap"
+   ],
+   [
+    "rank",
+    "trap"
+   ],
+   [
+    "hat",
+    "bomb"
+   ],
+   [
+    "hat",
+    "bomb"
+   ],
+   [
+    "bomb",
+    "rank"
+   ],
+   [
+    "rank",
+    "buddy"
+   ],
+   [
+    "rank",
+    "trap"
+   ],
+   [
+    "buddy",
+    "vacation"
+   ],
+   [
+    "expand",
+    "rank"
+   ],
+   [
+    "expand",
+    "vacation"
+   ],
+   [
+    "hat",
+    "rank"
+   ],
+   [
+    "hat",
+    "bomb"
+   ],
+   [
+    "hat",
+    "rank"
+   ],
+   [
+    "vacation",
+    "rank"
+   ],
+   [
+    "rank",
+    "hat"
+   ],
+   [
+    "rank",
+    "vacation"
+   ],
+   [
+    "trap",
+    "hat"
+   ],
+   [
+    "rank",
+    "bomb"
+   ],
+   [
+    "hat",
+    "buddy"
+   ],
+   [
+    "bomb",
+    "rank"
+   ],
+   [
+    "rank",
+    "gold"
+   ]
   ],
   "1": [
-   "rank",
-   "gold",
-   "rank",
-   "rank",
-   "rank",
-   "hat",
-   "rank",
-   "rank",
-   "rank",
-   "buddy",
-   "trap",
-   "rank",
-   "rank",
-   "trap",
-   "rank",
-   "rank",
-   "rank",
-   "rank",
-   "bomb",
-   "rank",
-   "bomb",
-   "rank",
-   "rank",
-   "bomb",
-   "rank",
-   "rank",
-   "vacation",
-   "rank",
-   "rank",
-   "buddy",
-   "rank",
-   "vacation",
-   "rank",
-   "rank",
-   "rank",
-   "buddy",
-   "rank",
-   "rank",
-   "bomb",
-   "rank",
-   "rank",
-   "rank",
-   "trap",
-   "rank",
-   "rank",
-   "expand",
-   "rank",
-   "gold",
-   "rank",
-   "trap",
-   "hat",
-   "rank",
-   "rank",
-   "rank",
-   "rank",
-   "rank",
-   "bomb",
-   "rank",
-   "rank",
-   "rank",
-   "bomb"
+   [
+    "rank"
+   ],
+   [
+    "vacation",
+    "rank"
+   ],
+   [
+    "rank",
+    "trap"
+   ],
+   [
+    "rank",
+    "hat"
+   ],
+   [
+    "trap",
+    "buddy"
+   ],
+   [
+    "buddy",
+    "rank"
+   ],
+   [
+    "bomb",
+    "trap"
+   ],
+   [
+    "vacation",
+    "rank"
+   ],
+   [
+    "hat",
+    "bomb"
+   ],
+   [
+    "trap",
+    "rank"
+   ],
+   [
+    "vacation",
+    "bomb"
+   ],
+   [
+    "trap",
+    "rank"
+   ],
+   [
+    "hat",
+    "rank"
+   ],
+   [
+    "gold",
+    "hat"
+   ],
+   [
+    "vacation",
+    "rank"
+   ],
+   [
+    "buddy",
+    "hat"
+   ],
+   [
+    "bomb",
+    "rank"
+   ],
+   [
+    "rank",
+    "bomb"
+   ],
+   [
+    "expand",
+    "rank"
+   ],
+   [
+    "vacation",
+    "hat"
+   ],
+   [
+    "rank",
+    "bomb"
+   ],
+   [
+    "rank",
+    "trap"
+   ],
+   [
+    "hat",
+    "trap"
+   ],
+   [
+    "trap",
+    "rank"
+   ],
+   [
+    "trap",
+    "rank"
+   ],
+   [
+    "rank",
+    "bomb"
+   ],
+   [
+    "hat",
+    "expand"
+   ],
+   [
+    "rank",
+    "hat"
+   ],
+   [
+    "trap",
+    "trap"
+   ],
+   [
+    "hat",
+    "rank"
+   ],
+   [
+    "expand",
+    "rank"
+   ]
   ],
   "2": [
-   "rank",
-   "rank",
-   "rank",
-   "bomb",
-   "rank",
-   "rank",
-   "vacation",
-   "rank",
-   "rank",
-   "rank",
-   "rank",
-   "bomb",
-   "buddy",
-   "rank",
-   "trap",
-   "hat",
-   "rank",
-   "rank",
-   "rank",
-   "rank",
-   "bomb",
-   "rank",
-   "rank",
-   "rank",
-   "trap",
-   "rank",
-   "rank",
-   "gold",
-   "rank",
-   "rank",
-   "buddy",
-   "rank",
-   "rank",
-   "rank",
-   "rank",
-   "expand",
-   "gold",
-   "vacation",
-   "rank",
-   "rank",
-   "rank",
-   "rank",
-   "trap",
-   "trap",
-   "buddy",
-   "rank",
-   "rank",
-   "rank",
-   "rank",
-   "bomb",
-   "hat",
-   "rank",
-   "rank",
-   "rank",
-   "rank",
-   "bomb",
-   "rank",
-   "rank",
-   "rank",
-   "rank",
-   "bomb"
+   [
+    "rank"
+   ],
+   [
+    "trap",
+    "hat"
+   ],
+   [
+    "rank",
+    "trap"
+   ],
+   [
+    "bomb",
+    "hat"
+   ],
+   [
+    "hat",
+    "rank"
+   ],
+   [
+    "bomb",
+    "rank"
+   ],
+   [
+    "rank",
+    "expand"
+   ],
+   [
+    "trap",
+    "hat"
+   ],
+   [
+    "buddy",
+    "rank"
+   ],
+   [
+    "rank",
+    "expand"
+   ],
+   [
+    "vacation",
+    "rank"
+   ],
+   [
+    "hat",
+    "rank"
+   ],
+   [
+    "trap",
+    "bomb"
+   ],
+   [
+    "rank",
+    "expand"
+   ],
+   [
+    "hat",
+    "bomb"
+   ],
+   [
+    "rank",
+    "gold"
+   ],
+   [
+    "hat",
+    "vacation"
+   ],
+   [
+    "vacation",
+    "rank"
+   ],
+   [
+    "trap",
+    "rank"
+   ],
+   [
+    "bomb",
+    "bomb"
+   ],
+   [
+    "trap",
+    "rank"
+   ],
+   [
+    "rank",
+    "trap"
+   ],
+   [
+    "rank",
+    "hat"
+   ],
+   [
+    "trap",
+    "vacation"
+   ],
+   [
+    "buddy",
+    "rank"
+   ],
+   [
+    "rank",
+    "trap"
+   ],
+   [
+    "rank",
+    "vacation"
+   ],
+   [
+    "rank",
+    "bomb"
+   ],
+   [
+    "trap",
+    "trap"
+   ],
+   [
+    "buddy",
+    "hat"
+   ],
+   [
+    "hat",
+    "rank"
+   ]
   ],
   "42": [
-   "rank",
-   "rank",
-   "rank",
-   "rank",
-   "trap",
-   "rank",
-   "hat",
-   "rank",
-   "rank",
-   "buddy",
-   "buddy",
-   "rank",
-   "rank",
-   "rank",
-   "bomb",
-   "rank",
-   "rank",
-   "rank",
-   "bomb",
-   "rank",
-   "rank",
-   "trap",
-   "rank",
-   "bomb",
-   "rank",
-   "rank",
-   "gold",
-   "rank",
-   "rank",
-   "rank",
-   "vacation",
-   "rank",
-   "rank",
-   "bomb",
-   "trap",
-   "rank",
-   "rank",
-   "rank",
-   "vacation",
-   "rank",
-   "gold",
-   "rank",
-   "rank",
-   "expand",
-   "bomb",
-   "rank",
-   "rank",
-   "rank",
-   "rank",
-   "bomb",
-   "rank",
-   "hat",
-   "rank",
-   "rank",
-   "rank",
-   "rank",
-   "rank",
-   "trap",
-   "rank",
-   "rank",
-   "buddy"
+   [
+    "rank"
+   ],
+   [
+    "trap",
+    "rank"
+   ],
+   [
+    "vacation",
+    "rank"
+   ],
+   [
+    "hat",
+    "trap"
+   ],
+   [
+    "trap",
+    "vacation"
+   ],
+   [
+    "rank",
+    "hat"
+   ],
+   [
+    "rank",
+    "hat"
+   ],
+   [
+    "rank",
+    "vacation"
+   ],
+   [
+    "bomb",
+    "rank"
+   ],
+   [
+    "rank",
+    "trap"
+   ],
+   [
+    "buddy",
+    "trap"
+   ],
+   [
+    "rank",
+    "gold"
+   ],
+   [
+    "vacation",
+    "trap"
+   ],
+   [
+    "rank",
+    "bomb"
+   ],
+   [
+    "trap",
+    "rank"
+   ],
+   [
+    "bomb",
+    "hat"
+   ],
+   [
+    "rank",
+    "expand"
+   ],
+   [
+    "bomb",
+    "rank"
+   ],
+   [
+    "trap",
+    "hat"
+   ],
+   [
+    "expand",
+    "rank"
+   ],
+   [
+    "bomb",
+    "vacation"
+   ],
+   [
+    "hat",
+    "rank"
+   ],
+   [
+    "rank",
+    "trap"
+   ],
+   [
+    "trap",
+    "rank"
+   ],
+   [
+    "bomb",
+    "hat"
+   ],
+   [
+    "expand",
+    "buddy"
+   ],
+   [
+    "hat",
+    "rank"
+   ],
+   [
+    "hat",
+    "hat"
+   ],
+   [
+    "bomb",
+    "rank"
+   ],
+   [
+    "rank",
+    "buddy"
+   ],
+   [
+    "rank",
+    "trap"
+   ]
   ]
  },
  "sim_reference": {
   "demo": {
-   "median": 78.87,
-   "p10": 66.0,
-   "p90": 83.57,
-   "max": 86.77,
+   "median": 78.86,
+   "p10": 55.75,
+   "p90": 111.37,
+   "max": 136.82,
    "pass_range": [
-    65,
-    95
+    60,
+    100
    ],
    "first10_seeds": [
-    84.22,
-    67.38,
-    78.7,
-    76.73,
-    80.02,
-    74.52,
-    86.77,
-    72.83,
-    68.77,
-    66.0
+    59.95,
+    117.15,
+    88.03,
+    95.02,
+    55.75,
+    59.02,
+    57.92,
+    106.78,
+    121.8,
+    63.72
    ]
   },
   "enemy_only": {
    "median": 95.02,
-   "p10": 94.55,
+   "p10": 95.02,
    "p90": 95.02,
    "max": 95.02,
    "pass_range": [
@@ -422,125 +670,125 @@
    ],
    "first10_seeds": [
     95.02,
-    94.55,
-    95.02,
-    95.02,
-    94.55,
-    93.32,
     95.02,
     95.02,
     95.02,
-    94.55
+    95.02,
+    95.02,
+    95.02,
+    95.02,
+    95.02,
+    95.02
    ]
   },
   "block_only": {
-   "median": 37.47,
-   "p10": 26.08,
-   "p90": 53.35,
-   "max": 119.27,
+   "median": 62.66,
+   "p10": 32.55,
+   "p90": 274.55,
+   "max": 459.98,
    "pass_range": [
-    25,
-    60
+    30,
+    110
    ],
    "first10_seeds": [
-    34.4,
-    34.4,
-    53.35,
-    36.67,
-    119.27,
+    21.12,
+    381.88,
+    58.58,
+    58.83,
     37.63,
-    26.08,
-    36.28,
-    26.08,
-    52.12
+    37.92,
+    82.53,
+    109.25,
+    274.55,
+    60.95
    ]
   },
   "timid": {
-   "median": 179.63,
-   "p10": 137.25,
-   "p90": 257.88,
-   "max": 329.18,
+   "median": 142.55,
+   "p10": 127.27,
+   "p90": 188.55,
+   "max": 311.23,
    "pass_range": [
-    150,
-    210
+    120,
+    170
    ],
    "first10_seeds": [
-    256.93,
-    276.18,
-    175.5,
-    215.5,
-    258.62,
-    276.4,
-    275.98,
-    236.85,
-    140.28,
-    163.95
+    135.18,
+    168.08,
+    138.72,
+    135.75,
+    128.9,
+    158.15,
+    140.4,
+    139.88,
+    257.6,
+    156.45
    ]
   },
   "casual": {
-   "median": 276.2,
-   "p10": 195.02,
-   "p90": 358.43,
-   "max": 392.65,
+   "median": 244.94,
+   "p10": 175.88,
+   "p90": 336.32,
+   "max": 437.27,
    "pass_range": [
-    225,
-    305
+    205,
+    285
    ],
    "first10_seeds": [
-    278.33,
-    275.9,
-    218.07,
-    359.1,
-    278.32,
-    257.88,
-    270.82,
-    255.25,
-    176.42,
-    338.42
+    219.57,
+    176.52,
+    157.23,
+    219.87,
+    374.68,
+    280.65,
+    216.15,
+    176.78,
+    295.02,
+    256.9
    ]
   },
   "good": {
-   "median": 317.93,
-   "p10": 239.53,
-   "p90": 379.93,
-   "max": 468.68,
+   "median": 336.32,
+   "p10": 258.9,
+   "p90": 413.8,
+   "max": 451.38,
    "pass_range": [
-    280,
-    355
+    295,
+    375
    ],
    "first10_seeds": [
-    317.4,
-    319.57,
-    219.47,
-    379.88,
-    316.43,
-    239.23,
-    257.0,
-    377.4,
-    279.48,
-    416.18
+    329.87,
+    413.8,
+    335.27,
+    377.98,
+    256.78,
+    335.85,
+    358.17,
+    449.95,
+    415.13,
+    358.68
    ]
   },
   "expert": {
-   "median": 338.08,
-   "p10": 259.03,
-   "p90": 416.9,
-   "max": 459.85,
+   "median": 377.73,
+   "p10": 295.02,
+   "p90": 451.07,
+   "max": 538.8,
    "pass_range": [
-    300,
-    395
+    335,
+    420
    ],
    "first10_seeds": [
-    280.0,
-    338.5,
-    357.47,
-    416.22,
-    378.87,
-    239.23,
-    257.07,
-    379.5,
-    336.28,
-    419.33
+    367.1,
+    419.65,
+    336.3,
+    377.93,
+    367.48,
+    439.23,
+    376.33,
+    457.37,
+    423.52,
+    356.7
    ]
   }
  }

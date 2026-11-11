@@ -1,22 +1,24 @@
 // 背景・道・敵・ブロック・プレイヤー・弾・エフェクトの描画（仕様書 6 章）。状態を読むだけで書き換えない。
-import { B } from '../core/balance.ts';
+import { AIM, B } from '../core/balance.ts';
 import { bossName, dpsOf, weaponStage } from '../core/formulas.ts';
-import type { GameState } from '../core/state.ts';
+import type { Block, GameState } from '../core/state.ts';
 import { INK, circle, clamp, ellipse, fancyText, fillRoundRect, gradV, lerp, poly, text, type Ctx } from './draw.ts';
 import { formatHp } from './format.ts';
-import { BLOCK_LANE, CENTER_X, ENEMY_LANE, FRONT_Y, H, HALF_ROAD, HORIZON_Y, W, kOf, xOf, yOf } from './projection.ts';
+import { CENTER_X, FRONT_Y, H, HALF_ROAD, HORIZON_Y, W, kOf, xOf, yOf } from './projection.ts';
 import { BLOCK_NUMBER, BLOCK_TOP, HAT_COLORS, drawSprite, drawSpriteCentered, sprite } from './sprites.ts';
-import { LOOK, TONE, type Bullet, type View } from './view.ts';
+import { LOOK, TONE, blockZ, type Bullet, type View } from './view.ts';
 
 /** 帽子は 12 個まで積んで描き、それ以上は「×N」と数字で出す（仕様書 6.7 節） */
 const MAX_HATS_DRAWN = 12;
 /** 残り HP がこの割合を切ったブロックは赤く震える（7 章） */
 const BLOCK_DANGER = 0.15;
-/** 相棒を置く x。3 台目は真ん中 */
-const BUDDY_X = [62, 238, 150] as const;
+/** 相棒を置く横位置（u）。3 台目は真ん中 */
+const BUDDY_U = [-0.36, 0.36, 0] as const;
 const BUDDY_BOTTOM = 884;
 /** 橋の縁（道の外側の壁）の外端。u の値 */
 const WALL = 1.1;
+/** 強化の帯の内側の端（敵の帯との境の少し外） */
+const SIDE_INNER = AIM.border + 0.03;
 /** 銃口が光る武器の段階（火薬で撃つもの） */
 const MUZZLE_STAGES = new Set([3, 4, 5, 6, 7, 8]);
 /** 埋まり度がこの割合以上で、画面の縁を赤くし、防衛線の警告灯を回す */
@@ -139,19 +141,23 @@ function drawBridge(c: Ctx): void {
   band(c, -WALL, WALL, 0, 1, '#c5ccd9');
   band(c, -WALL + 0.035, WALL - 0.035, 0, 1, '#eef1f6');
   band(c, -1, 1, 0, 1, gradV(c, HORIZON_Y, FRONT_Y, '#7b8296', '#454a5c'));
-  band(c, ENEMY_LANE.min, ENEMY_LANE.max, 0, 1, 'rgba(255,70,70,0.17)');
-  band(c, BLOCK_LANE.min, BLOCK_LANE.max, 0, 1, 'rgba(70,160,255,0.2)');
+  // 真ん中が敵の帯（赤み）、左右の端が強化の帯（青み）
+  band(c, -AIM.border, AIM.border, 0, 1, 'rgba(255,70,70,0.17)');
+  for (const side of [-1, 1]) band(c, side * SIDE_INNER, side * 0.95, 0, 1, 'rgba(70,160,255,0.24)');
   // 路面の継ぎ目
   for (let i = 1; i < 12; i++) {
     const z = i / 12;
     c.fillStyle = 'rgba(0,0,0,0.1)';
     c.fillRect(xOf(-1, z), yOf(z), xOf(1, z) - xOf(-1, z), Math.max(1, 2.5 * kOf(z)));
   }
-  // 路肩の白線と、中央の分離帯
-  for (const u of [-0.965, 0.965]) band(c, u - 0.012, u + 0.012, 0, 1, 'rgba(255,255,255,0.85)');
-  band(c, -0.05, 0.05, 0, 1, '#3a3f4f');
-  band(c, -0.034, 0.034, 0, 1, '#ffd23f');
-  for (let i = 0; i < 30; i += 2) band(c, -0.034, 0.034, i / 30, (i + 1) / 30, '#2b2f3b');
+  // 路肩の白線と、帯を分ける黄色い線
+  for (const u of [-0.975, 0.975]) band(c, u - 0.01, u + 0.01, 0, 1, 'rgba(255,255,255,0.85)');
+  for (const side of [-1, 1]) {
+    const u = side * (AIM.border + 0.015);
+    band(c, u - 0.022, u + 0.022, 0, 1, '#3a3f4f');
+    band(c, u - 0.012, u + 0.012, 0, 1, '#ffd23f');
+    for (let i = 0; i < 30; i += 2) band(c, u - 0.012, u + 0.012, i / 30, (i + 1) / 30, '#2b2f3b');
+  }
   // 手すり。支柱を立て、上端を横木でつなぐ
   for (const side of [-1, 1]) {
     const u = side * (WALL - 0.02);
@@ -159,6 +165,7 @@ function drawBridge(c: Ctx): void {
     c.lineCap = 'round';
     let px = 0;
     let py = 0;
+    let pBase = 0;
     for (let i = 0; i <= 16; i++) {
       const z = (i / 16) ** 1.5;
       const k = kOf(z);
@@ -174,12 +181,13 @@ function drawBridge(c: Ctx): void {
         c.beginPath();
         c.moveTo(px, py);
         c.lineTo(x, top);
-        c.moveTo(px, py + (yOf(((i - 1) / 16) ** 1.5) - py) * 0.5);
-        c.lineTo(x, top + (y - top) * 0.5);
+        c.moveTo(px, (py + pBase) / 2);
+        c.lineTo(x, (top + y) / 2);
         c.stroke();
       }
       px = x;
       py = top;
+      pBase = y;
     }
   }
 }
@@ -192,12 +200,16 @@ function drawPlatform(c: Ctx): void {
   c.fillStyle = 'rgba(0,0,0,0.35)';
   c.fillRect(0, FRONT_Y + 4, W, 3);
   for (let x = 24; x < W; x += 70) circle(c, x, FRONT_Y + 18, 2.5, 'rgba(255,255,255,0.18)');
-  // 強化レーンの通過線
-  const x0 = xOf(BLOCK_LANE.min, 0);
-  const cell = (xOf(BLOCK_LANE.max, 0) - x0) / 12;
-  for (let i = 0; i < 12; i++) {
-    c.fillStyle = i % 2 ? '#f4f6fa' : '#2a2f3a';
-    c.fillRect(x0 + i * cell, FRONT_Y - 9, cell + 0.5, 9);
+  // 強化の帯の通過線（左右）
+  for (const side of [-1, 1]) {
+    const a = xOf(side * SIDE_INNER, 0);
+    const b = xOf(side * 0.95, 0);
+    const x0 = Math.min(a, b);
+    const cell = Math.abs(b - a) / 6;
+    for (let i = 0; i < 6; i++) {
+      c.fillStyle = i % 2 ? '#f4f6fa' : '#2a2f3a';
+      c.fillRect(x0 + i * cell, FRONT_Y - 9, cell + 0.5, 9);
+    }
   }
 }
 
@@ -263,12 +275,16 @@ function drawSparkles(ctx: Ctx, time: number): void {
   ctx.globalAlpha = 1;
 }
 
-/** レーンを手前へ流れる矢羽根。敵と強化が「流れてくる」向きを見せる */
+/** 帯を手前へ流れる矢羽根。敵と強化が「流れてくる」向きを見せる */
 function drawChevrons(ctx: Ctx, time: number): void {
   const count = 9;
   const phase = (time / B.blockTravel) % (1 / count);
-  for (const lane of [ENEMY_LANE, BLOCK_LANE]) {
-    const half = (lane.max - lane.min) * 0.3;
+  const lanes = [
+    { center: 0, half: 0.3 },
+    { center: -AIM.blockCols[1], half: 0.1 },
+    { center: AIM.blockCols[1], half: 0.1 },
+  ];
+  for (const lane of lanes) {
     for (let i = 0; i <= count; i++) {
       const z = (i + 1) / count - phase;
       if (z <= 0.04 || z >= 1) continue;
@@ -276,12 +292,12 @@ function drawChevrons(ctx: Ctx, time: number): void {
       const z1 = z + 0.02 + z * 0.035;
       const tip = z - 0.045 - z * 0.06;
       ctx.beginPath();
-      ctx.moveTo(xOf(lane.center - half, z), yOf(z));
+      ctx.moveTo(xOf(lane.center - lane.half, z), yOf(z));
       ctx.lineTo(xOf(lane.center, tip), yOf(tip));
-      ctx.lineTo(xOf(lane.center + half, z), yOf(z));
-      ctx.lineTo(xOf(lane.center + half, z1), yOf(z1));
+      ctx.lineTo(xOf(lane.center + lane.half, z), yOf(z));
+      ctx.lineTo(xOf(lane.center + lane.half, z1), yOf(z1));
       ctx.lineTo(xOf(lane.center, tip + (z1 - z)), yOf(tip + (z1 - z)));
-      ctx.lineTo(xOf(lane.center - half, z1), yOf(z1));
+      ctx.lineTo(xOf(lane.center - lane.half, z1), yOf(z1));
       ctx.closePath();
       ctx.fillStyle = `rgba(255,255,255,${alpha})`;
       ctx.fill();
@@ -292,8 +308,8 @@ function drawChevrons(ctx: Ctx, time: number): void {
 // ---------------------------------------------------------------- 道の上のもの
 
 function drawBarricade(ctx: Ctx, time: number, danger: boolean): void {
-  const x0 = xOf(-0.99, 0);
-  const x1 = xOf(-0.01, 0);
+  const x0 = xOf(-AIM.border + 0.01, 0);
+  const x1 = xOf(AIM.border - 0.01, 0);
   const w = x1 - x0;
   const y = FRONT_Y - 24;
   fillRoundRect(ctx, x0 - 2, y - 2, w + 4, 28, 6, INK);
@@ -316,40 +332,19 @@ function drawBarricade(ctx: Ctx, time: number, danger: boolean): void {
   }
 }
 
-function drawEnemies(ctx: Ctx, s: GameState, v: View): void {
-  const frontId = s.head < s.enemies.length ? s.enemies[s.head]!.id : -1;
-  const hit = v.time - v.enemyHitAt < 0.07;
-  // 列の後ろほど奥にいるので、後ろから描けば奥から手前の順になる
-  for (let i = s.enemies.length - 1; i >= s.head; i--) {
-    const e = s.enemies[i]!;
-    const vis = v.enemies.get(e.id);
-    if (!vis) continue;
-    // 現れた瞬間は小さく、すぐ元の大きさへふくらむ
-    const pop = vis.age < 0.18 ? 0.4 + (vis.age / 0.18) * 0.6 : 1;
-    const scale = vis.scale * pop;
-    const bob = Math.abs(Math.sin(v.time * 6 + vis.phase)) * 4 * scale;
-    const front = e.id === frontId;
-    const push = front && hit ? -3 * scale : 0;
-    if (e.kind === 'boss') {
-      const sp = sprite(vis.spriteId);
-      const top = vis.y - sp.h * scale;
-      if (e.bossIndex > 4) ellipse(ctx, vis.x, vis.y - (sp.h * scale) / 2, 120 * scale, 120 * scale, 'rgba(170,60,255,0.35)');
-      drawSprite(ctx, vis.spriteId, vis.x, vis.y - bob * 0.5 + push, scale);
-      if (front && hit) flashOver(ctx, vis.spriteId, vis.x, vis.y - bob * 0.5 + push, scale, 0.4);
-      const bw = 170 * scale;
-      const bh = Math.max(5, 13 * scale);
-      const by = top - bh - 8 * scale;
-      fillRoundRect(ctx, vis.x - bw / 2 - 2, by - 2, bw + 4, bh + 4, bh / 2 + 2, INK);
-      const ratio = clamp(e.hp / e.hp0, 0, 1);
-      if (ratio > 0) {
-        ctx.fillStyle = gradV(ctx, by, by + bh, '#ff8f8f', '#e01f1f');
-        fillRoundRectPath(ctx, vis.x - bw / 2, by, bw * ratio, bh, bh / 2);
-      }
-      fancyText(ctx, bossName(e.bossIndex), vis.x, by - 13 * scale - 3, { size: Math.max(12, 23 * scale), top: '#ffffff', bottom: '#ffd0d0', maxWidth: 240 });
-    } else {
-      drawSprite(ctx, vis.spriteId, vis.x, vis.y - bob + push, scale);
-      if (front && hit) flashOver(ctx, vis.spriteId, vis.x, vis.y - bob + push, scale, 0.55);
-    }
+/** 弾の列を、プレイヤーから標的まで薄く光らせる。狙いがどこに当たっているかを見せる */
+function drawAimColumn(ctx: Ctx, s: GameState, v: View): void {
+  if (s.over) return;
+  const u = s.player.x;
+  const a = 0.1 + 0.03 * Math.sin(v.time * 9);
+  band(ctx, u - AIM.beamHalf, u + AIM.beamHalf, 0, v.aim.z, `rgba(255,255,255,${v.aim.hit ? a : a * 0.5})`);
+  if (v.aim.hit) {
+    const r = 26 * v.aim.k + 6;
+    ctx.strokeStyle = 'rgba(255,255,255,0.75)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.ellipse(v.aim.x, yOf(v.aim.z), r, r * 0.32, 0, 0, Math.PI * 2);
+    ctx.stroke();
   }
 }
 
@@ -373,25 +368,70 @@ function flashOver(ctx: Ctx, id: string, cx: number, bottom: number, scale: numb
   ctx.globalAlpha = 1;
 }
 
-/** 先頭のブロックを、今から撃ち続けて壊し切れるか（仕様書 6.5 節） */
-export function canBreakInTime(s: GameState): boolean {
-  const b = s.blocks[0];
-  if (!b) return false;
-  const need = b.hp / dpsOf(s.player.rank) + (s.player.lane === 'enemy' ? B.switchTime : 0);
+function drawEnemies(ctx: Ctx, s: GameState, v: View): void {
+  const hit = v.time - v.enemyHitAt < 0.07;
+  // 列の後ろほど奥にいるので、後ろから描けば奥から手前の順になる
+  for (let i = s.enemies.length - 1; i >= 0; i--) {
+    const e = s.enemies[i]!;
+    const vis = v.enemies.get(e.id);
+    if (!vis) continue;
+    // 現れた瞬間は小さく、すぐ元の大きさへふくらむ
+    const pop = vis.age < 0.18 ? 0.4 + (vis.age / 0.18) * 0.6 : 1;
+    const scale = vis.scale * pop;
+    const bob = Math.abs(Math.sin(v.time * 6 + vis.phase)) * 4 * scale;
+    const target = e.id === v.aim.enemyId;
+    const push = target && hit ? -3 * scale : 0;
+    if (e.kind === 'boss') {
+      const sp = sprite(vis.spriteId);
+      const top = vis.y - sp.h * scale;
+      if (e.bossIndex > 4) ellipse(ctx, vis.x, vis.y - (sp.h * scale) / 2, 120 * scale, 120 * scale, 'rgba(170,60,255,0.35)');
+      drawSprite(ctx, vis.spriteId, vis.x, vis.y - bob * 0.5 + push, scale);
+      if (target && hit) flashOver(ctx, vis.spriteId, vis.x, vis.y - bob * 0.5 + push, scale, 0.4);
+      const bw = 170 * scale;
+      const bh = Math.max(5, 13 * scale);
+      const by = top - bh - 8 * scale;
+      fillRoundRect(ctx, vis.x - bw / 2 - 2, by - 2, bw + 4, bh + 4, bh / 2 + 2, INK);
+      const ratio = clamp(e.hp / e.hp0, 0, 1);
+      if (ratio > 0) {
+        ctx.fillStyle = gradV(ctx, by, by + bh, '#ff8f8f', '#e01f1f');
+        fillRoundRectPath(ctx, vis.x - bw / 2, by, bw * ratio, bh, bh / 2);
+      }
+      fancyText(ctx, bossName(e.bossIndex), vis.x, by - 13 * scale - 3, { size: Math.max(12, 23 * scale), top: '#ffffff', bottom: '#ffd0d0', maxWidth: 240 });
+    } else {
+      drawSprite(ctx, vis.spriteId, vis.x, vis.y - bob + push, scale);
+      if (target && hit) flashOver(ctx, vis.spriteId, vis.x, vis.y - bob + push, scale, 0.55);
+      // 削れた敵には、残り HP の細いバーを頭の上に出す（どれが倒れかけか分かるように）
+      if (e.hp < e.hp0 && e.kind !== 'spam') {
+        const sp = sprite(vis.spriteId);
+        const bw = sp.w * scale * 0.7;
+        const by = vis.y - bob - sp.h * scale - 5 * scale;
+        ctx.fillStyle = INK;
+        ctx.fillRect(vis.x - bw / 2 - 1, by - 1, bw + 2, 4 * scale + 2);
+        ctx.fillStyle = '#ff6b6b';
+        ctx.fillRect(vis.x - bw / 2, by, bw * clamp(e.hp / e.hp0, 0, 1), 4 * scale);
+      }
+    }
+  }
+}
+
+/** そのブロックを、今から向かって撃ち続ければ壊し切れるか（仕様書 6.5 節）。移動の時間を含む */
+export function canBreakInTime(s: GameState, b: Block): boolean {
+  const need = b.hp / dpsOf(s.player.rank) + Math.abs(b.u - s.player.x) / AIM.moveSpeed;
   return need <= b.passAt - s.t;
 }
 
 function drawBlocks(ctx: Ctx, s: GameState, v: View): void {
   for (let i = s.blocks.length - 1; i >= 0; i--) {
     const b = s.blocks[i]!;
-    const z = clamp((b.passAt - s.t) / B.blockTravel, 0, 1);
+    const z = blockZ(s, b.passAt);
     const k = kOf(z);
     const ratio = clamp(b.hp / b.maxHp, 0, 1);
-    const front = i === 0;
+    // 同じ列でいちばん手前のブロックだけが撃てる
+    const front = !s.blocks.some((o) => o.col === b.col && o.passAt < b.passAt);
     const danger = ratio < BLOCK_DANGER;
-    const beingHit = front && v.time - v.blockHitAt < 0.1;
+    const beingHit = b.id === v.aim.blockId && v.time - v.blockHitAt < 0.1;
     const amp = (beingHit ? 2.5 : 0) + (danger ? 3 : 0);
-    const cx = xOf(BLOCK_LANE.center, z) + Math.sin(v.time * 71 + i) * amp * k;
+    const cx = xOf(b.u, z) + Math.sin(v.time * 71 + i) * amp * k;
     // 少し浮かせて、ゆっくり上下させる
     const hover = (5 + Math.sin(v.time * 2.4 + b.id) * 3) * k;
     const bottom = yOf(z) - hover + Math.cos(v.time * 83 + i) * amp * 0.5 * k;
@@ -407,8 +447,8 @@ function drawBlocks(ctx: Ctx, s: GameState, v: View): void {
       ctx.fillStyle = `rgba(255,40,40,${0.25 + 0.2 * Math.sin(v.time * 30)})`;
       ctx.fillRect(cx - 75 * k, bottom - (110 - BLOCK_TOP) * k, 150 * k, (110 - BLOCK_TOP) * k);
     }
-    // 残り HP の数字。先頭だけ、間に合うなら白、間に合わないなら赤。先頭以外は灰色
-    const color = front ? (canBreakInTime(s) ? '#ffffff' : '#ff5c5c') : '#c9ced8';
+    // 残り HP の数字。撃てるブロックは、間に合うなら白、間に合わないなら赤。後ろのブロックは灰色
+    const color = front ? (canBreakInTime(s, b) ? '#ffffff' : '#ff5c5c') : '#c9ced8';
     const nx = b.kind === 'trap' ? cx : cx + BLOCK_NUMBER.dx * k;
     const size = (b.kind === 'trap' ? 30 : 36) * k;
     text(ctx, formatHp(b.hp), nx, bottom - (b.kind === 'trap' ? 40 : BLOCK_NUMBER.up) * k, {
@@ -429,10 +469,10 @@ function drawBlocks(ctx: Ctx, s: GameState, v: View): void {
 }
 
 function drawBuddies(ctx: Ctx, s: GameState, v: View): void {
-  // 相棒はレーンに関係なく、いつも敵レーンの先頭を撃っている
-  const front = !s.over && s.head < s.enemies.length ? v.enemies.get(s.enemies[s.head]!.id) : undefined;
+  // 相棒は列に関係なく、いつも敵の先頭を撃っている
+  const front = !s.over && s.enemies.length > 0 ? v.enemies.get(s.enemies[0]!.id) : undefined;
   for (let i = 0; i < s.player.buddies; i++) {
-    const x = BUDDY_X[i]! + Math.sin(v.time * 3 + i * 2.1) * 3;
+    const x = xOf(BUDDY_U[i]!, 0) + Math.sin(v.time * 3 + i * 2.1) * 3;
     if (front) {
       ctx.globalCompositeOperation = 'lighter';
       ctx.strokeStyle = `rgba(105,240,138,${0.35 + 0.3 * Math.sin(v.time * 40 + i * 2)})`;
@@ -467,7 +507,7 @@ function drawPlayer(ctx: Ctx, s: GameState, v: View): void {
   }
   const sinceShot = v.time - v.shotAt;
   const recoil = v.shooting ? clamp(1 - sinceShot / 0.06, 0, 1) * 3.5 : 0;
-  drawSprite(ctx, `weapon.${stage}`, x + LOOK.weaponDx, bottom - LOOK.weaponUp + recoil);
+  drawSprite(ctx, `weapon.${stage}`, m.x, bottom - LOOK.weaponUp + recoil);
   if (v.shooting && sinceShot < 0.05 && MUZZLE_STAGES.has(stage)) {
     ctx.globalCompositeOperation = 'lighter';
     drawSpriteCentered(ctx, 'muzzle', m.x, m.y - 6, 0.5 + (stage - 3) * 0.07, v.time * 40);
@@ -644,18 +684,13 @@ function drawFlood(ctx: Ctx, v: View): void {
 
 function drawLaneOverlays(ctx: Ctx, s: GameState, v: View): void {
   if (s.t < s.vacationUntil) {
-    band(ctx, ENEMY_LANE.min, ENEMY_LANE.max, 0, 1, 'rgba(120,220,255,0.22)');
+    band(ctx, -AIM.border, AIM.border, 0, 1, 'rgba(120,220,255,0.22)');
     const left = s.vacationUntil - s.t;
-    fancyText(ctx, `有給休暇中 あと ${left.toFixed(1)} 秒`, xOf(ENEMY_LANE.center, 0), 610, { size: 19, top: '#ffffff', bottom: '#bff4ff', stroke: '#0b5e78' });
-  }
-  // 今いるレーンの足元を光らせて、どちらを撃っているか分かるようにする
-  if (!s.over) {
-    const lane = s.player.lane === 'enemy' ? ENEMY_LANE : BLOCK_LANE;
-    band(ctx, lane.min, lane.max, 0, 0.06, `rgba(255,255,255,${0.14 + 0.06 * Math.sin(v.time * 6)})`);
+    fancyText(ctx, `有給休暇中 あと ${left.toFixed(1)} 秒`, CENTER_X, 610, { size: 19, top: '#ffffff', bottom: '#bff4ff', stroke: '#0b5e78' });
   }
   if (v.bombWaveAt >= 0) {
     const p = (v.time - v.bombWaveAt) / LOOK.bombWaveTime;
-    if (p < 1) band(ctx, ENEMY_LANE.min, ENEMY_LANE.max, Math.max(0, p - 0.12), Math.min(1, p + 0.04), `rgba(255,255,255,${0.9 * (1 - p * 0.5)})`);
+    if (p < 1) band(ctx, -AIM.border, AIM.border, Math.max(0, p - 0.12), Math.min(1, p + 0.04), `rgba(255,255,255,${0.9 * (1 - p * 0.5)})`);
   }
 }
 
@@ -672,6 +707,7 @@ export function drawScene(ctx: Ctx, s: GameState, v: View): void {
   drawSparkles(ctx, v.time);
   drawChevrons(ctx, v.time);
   drawLaneOverlays(ctx, s, v);
+  drawAimColumn(ctx, s, v);
   drawBlocks(ctx, s, v);
   drawEnemies(ctx, s, v);
   drawBarricade(ctx, v.time, danger);

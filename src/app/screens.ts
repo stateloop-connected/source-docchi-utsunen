@@ -13,7 +13,7 @@ export const CAPTION_SECONDS = 1.5;
 /** デモが負けたあと「FAIL」を出す時間 */
 export const FAIL_SECONDS = 2;
 /** リザルトで「（広告の人と同じ）」と添える推定 IQ の上限。デモのスコアの中央値がこの値になる */
-export const AD_IQ = 62;
+export const AD_IQ = 64;
 /** リザルトのスコアが 0 から数え上がる時間 */
 const COUNT_UP_SECONDS = 0.8;
 
@@ -203,7 +203,7 @@ export function drawResult(ctx: Ctx, r: ResultStats, message: string | null, age
   divider(332);
   row('到達 WAVE', String(r.wave), 362);
   row('最終武器', r.weapon, 402);
-  row('取った強化', `${r.review.taken} / ${r.review.offered}`, 442);
+  row('取った強化', `${r.review.taken} / ${r.review.offered}（両取り ${r.review.doubles}）`, 442);
   divider(468);
 
   // 左に推定 IQ、右に称号

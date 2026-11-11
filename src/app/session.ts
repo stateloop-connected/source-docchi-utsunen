@@ -1,9 +1,9 @@
 // 1 回分のゲーム。本編もデモも同じ core を使い、違うのは入力の出どころだけ（仕様書 5 章・8 章）。
 import { createDemoBot, type DemoBot } from '../bots/demo.ts';
-import { DT, type Lane } from '../core/balance.ts';
-import { createGame, type GameEvent, type GameState } from '../core/state.ts';
+import { DT } from '../core/balance.ts';
+import { createGame, sideOf, type GameEvent, type GameState } from '../core/state.ts';
 import { step } from '../core/step.ts';
-import { View, type Sfx } from '../render/view.ts';
+import { View, isNearMiss, type Sfx } from '../render/view.ts';
 
 /** 1 フレームで回す step の上限。それ以上の遅れは捨てる（仕様書 8.2 節） */
 const MAX_STEPS_PER_FRAME = 5;
@@ -17,13 +17,14 @@ export interface Advance {
 export class Session {
   readonly state: GameState;
   readonly view: View;
-  /** 人が遊ぶときの希望レーン。押した瞬間に切り替わり、次に押すまで保たれる */
-  want: Lane = 'enemy';
-  /** 削ったのに壊し切れず通過させたブロックの数（リザルトのひとこと用） */
+  /** 人が遊ぶときの、立ちたい横位置（u）。入力のたびに書き換わる */
+  aim = 0;
+  /** 半分以上削ったのに壊し切れず通過させた、役に立つブロックの数（リザルトのひとこと用） */
   nearMisses = 0;
   private readonly bot: DemoBot | null;
   private acc = 0;
   private blockTicks = 0;
+  private lastRule = 0;
 
   constructor(seed: number, demo: boolean, sfx: Sfx | null) {
     this.state = createGame(seed);
@@ -31,7 +32,7 @@ export class Session {
     this.bot = demo ? createDemoBot(seed) : null;
   }
 
-  /** 強化レーンにいた時間の割合（0〜1） */
+  /** 強化の帯にいた時間の割合（0〜1） */
   get blockShare(): number {
     return this.state.tick > 0 ? this.blockTicks / this.state.tick : 0;
   }
@@ -45,15 +46,15 @@ export class Session {
       this.acc -= DT;
       if (this.state.over) continue;
       if (this.bot) {
-        const prev = this.want;
-        this.want = this.bot.act(this.state);
-        if (this.bot.rule === 5 && prev === 'block' && this.want === 'enemy') demoQuit = true;
+        this.aim = this.bot.act(this.state);
+        if (this.bot.rule === 5 && this.lastRule !== 5) demoQuit = true;
+        this.lastRule = this.bot.rule;
       }
-      for (const e of step(this.state, this.want)) {
+      for (const e of step(this.state, this.aim)) {
         events.push(e);
-        if (e.type === 'blockPass' && e.damaged) this.nearMisses++;
+        if (e.type === 'blockPass' && isNearMiss(e.kind, e.left)) this.nearMisses++;
       }
-      if (this.state.player.lane === 'block') this.blockTicks++;
+      if (sideOf(this.state.player.x) === 'block') this.blockTicks++;
     }
     this.view.handle(events);
     this.view.update(dt, this.state);

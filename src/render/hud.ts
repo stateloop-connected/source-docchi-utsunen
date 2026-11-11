@@ -123,8 +123,7 @@ function drawCenterTop(ctx: Ctx, s: GameState, v: View, y: number, small: boolea
     return;
   }
   // ボスがいる間は名前と HP を出す
-  for (let i = s.head; i < s.enemies.length; i++) {
-    const e = s.enemies[i]!;
+  for (const e of s.enemies) {
     if (e.kind !== 'boss') continue;
     fancyText(ctx, bossName(e.bossIndex), W / 2, y - 8, { size: small ? 18 : 25, top: '#ffffff', bottom: '#ffd0d0', stroke: '#4a0a0a', maxWidth: 400 });
     const bw = small ? 220 : 300;
@@ -192,8 +191,8 @@ function drawGuide(ctx: Ctx, s: GameState): void {
   if (s.t >= GUIDE_SECONDS) return;
   ctx.globalAlpha = clamp(GUIDE_SECONDS - s.t, 0, 1);
   fillRoundRect(ctx, 58, 468, 424, 88, 20, 'rgba(10,14,30,0.62)');
-  fancyText(ctx, '← 敵 ｜ 強化 →', W / 2, 498, { size: 32, top: '#ffffff', bottom: '#cfe6ff' });
-  text(ctx, 'タップで移動', W / 2, 536, { size: 19, weight: 800, color: '#e8eefc' });
+  fancyText(ctx, '← 左右に動いて狙う →', W / 2, 498, { size: 30, top: '#ffffff', bottom: '#cfe6ff' });
+  text(ctx, '真ん中は敵、両端は強化ブロック', W / 2, 536, { size: 19, weight: 800, color: '#e8eefc' });
   ctx.globalAlpha = 1;
 }
 

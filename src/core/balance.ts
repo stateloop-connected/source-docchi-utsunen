@@ -1,6 +1,7 @@
 // 仕様書 3 章・4 章の全数値と表。ロジックに数値を直書きせず、ここを参照する。
 // 変えるときは reference/balance_sim.py の同じ値も変えて、npm run sim の結果を添えて依頼者に提案する。
 
+/** 道のどの帯か。中央が敵の帯、左右の端が強化の帯 */
 export type Lane = 'enemy' | 'block';
 export type EnemyKind = 'notice' | 'spam' | 'deadline' | 'revolving';
 export type BlockKind = 'rank' | 'gold' | 'buddy' | 'bomb' | 'vacation' | 'expand' | 'trap' | 'hat';
@@ -16,8 +17,8 @@ export const B = {
   g: 1.2,
   /** 基準のランク供給（ランク/秒）。ランクアップ 4 個/30 秒 + 金（+2）1 個/150 秒 */
   rRef: 0.44 / 3,
-  phi0: 0.3,
-  kappa: 0.0034,
+  phi0: 0.26,
+  kappa: 0.004,
   sizeBase: 3,
   sizeSlope: 0.02,
   sizeMax: 8,
@@ -33,7 +34,6 @@ export const B = {
   blockFirst: 3,
   blockInterval: 5,
   blockTravel: 10,
-  switchTime: 0.15,
   goldRanks: 2,
   buddyDps: 0.1,
   buddyMax: 3,
@@ -42,11 +42,37 @@ export const B = {
   vacation: 6,
   expand: 10,
   expandMax: 3,
-  trapCount: 20,
+  trapCount: 8,
   revolvingRate: 0.1,
   revolvingTime: 20,
   /** 埋まり度とボムの比較に使う許容誤差。増減で保つ合計の丸め誤差を吸収する（参照シミュレータと同じ値） */
   epsilon: 1e-9,
+} as const;
+
+/**
+ * 位置取りの決まり（仕様書 2.1 節・2.2 節）。横位置 u は −1（道の左端）〜+1（右端）。
+ * プレイヤーは左右に動き、正面の列だけを撃つ。
+ */
+export const AIM = {
+  /** プレイヤーが動ける範囲と速さ（u/秒） */
+  minX: -0.9,
+  maxX: 0.9,
+  moveSpeed: 3,
+  /** 弾の列の半分の幅。標的の半分の幅にこれを足した範囲に入っていれば当たる */
+  beamHalf: 0.06,
+  /** 敵が並ぶ範囲（道の中央） */
+  enemyMin: -0.5,
+  enemyMax: 0.5,
+  /** 迷惑メールなど、まとめて出る敵が中心から散らばる幅 */
+  groupSpread: 0.3,
+  /** 横位置の絶対値がこれ未満なら敵の帯、以上なら強化の帯を撃つ */
+  border: 0.55,
+  /** ボスの横位置と半分の幅（敵の帯を覆い、後ろの敵の盾になる） */
+  bossU: 0,
+  bossHalf: 0.5,
+  /** 強化ブロックの列（左端、右端）と、ブロックの半分の幅 */
+  blockCols: [-0.76, 0.76],
+  blockHalf: 0.156,
 } as const;
 
 /** 凪の出現倍率。ウェーブ平均がちょうど 1 倍になるように決まる（= 2/3） */
@@ -62,14 +88,16 @@ export interface EnemyDef {
   readonly count: number;
   readonly unlockWave: number;
   readonly weight: number;
+  /** 当たり判定の半分の幅（u） */
+  readonly halfWidth: number;
 }
 
 /** 4.1 節。並び順は種類選びで使うので変えない（解禁 WAVE の昇順でもある） */
 export const ENEMIES: readonly EnemyDef[] = [
-  { id: 'notice', name: '未読通知', hpMult: 1.0, size: 1.0, count: 1, unlockWave: 1, weight: 10 },
-  { id: 'spam', name: '迷惑メール', hpMult: 0.35, size: 0.5, count: 8, unlockWave: 3, weight: 2 },
-  { id: 'deadline', name: '締切', hpMult: 5.0, size: 3.0, count: 1, unlockWave: 6, weight: 1.5 },
-  { id: 'revolving', name: 'リボ払い', hpMult: 1.5, size: 1.5, count: 1, unlockWave: 9, weight: 1.5 },
+  { id: 'notice', name: '未読通知', hpMult: 2.5, size: 2.5, count: 1, unlockWave: 1, weight: 10, halfWidth: 0.13 },
+  { id: 'spam', name: '迷惑メール', hpMult: 0.35, size: 0.5, count: 8, unlockWave: 3, weight: 2.5, halfWidth: 0.075 },
+  { id: 'deadline', name: '締切', hpMult: 10, size: 6, count: 1, unlockWave: 6, weight: 1.5, halfWidth: 0.21 },
+  { id: 'revolving', name: 'リボ払い', hpMult: 3, size: 3, count: 1, unlockWave: 9, weight: 1.5, halfWidth: 0.145 },
 ];
 
 /** 罠で湧く敵（未読通知） */
@@ -99,13 +127,21 @@ export const BLOCKS: Readonly<Record<BlockKind, BlockDef>> = {
 
 export const BLOCK_KINDS = Object.keys(BLOCKS) as BlockKind[];
 
-/** 4.3 節。袋 1 つに入るランクアップの数 */
-export const BAG_RANKS = 4;
-/** 4.3 節。山の中身（このあとにサポート枠を SUPPORT_PER_PILE 枚足す） */
-export const PILE_BASE: readonly BlockKind[] = ['gold', 'bomb', 'bomb', 'bomb', 'trap', 'trap', 'hat', 'vacation'];
-export const SUPPORT_PER_PILE = 2;
-/** 山から袋へ移す枚数 */
-export const PILE_PER_BAG = 2;
+/**
+ * 4.3 節。ブロックは 2 個 1 組の「段」で流れてくる。
+ * 袋 1 つ = 6 段。そのうち RANK_ROWS 段は「ランクアップ + 山から 1 枚」、残りは「山から 2 枚」。
+ */
+export const ROWS_PER_BAG = 6;
+export const RANK_ROWS = 4;
+/** 山の中身（このあとにサポート枠を SUPPORT_PER_PILE 枚足す）。1 山で袋 5 つ分 = 150 秒 */
+export const PILE_BASE: readonly (readonly [BlockKind, number])[] = [
+  ['gold', 1],
+  ['bomb', 7],
+  ['vacation', 5],
+  ['trap', 11],
+  ['hat', 10],
+];
+export const SUPPORT_PER_PILE = 6;
 
 /** 4.4 節。ランクを WEAPON_STEP で割った商が武器の段階 */
 export const WEAPON_STEP = 4;

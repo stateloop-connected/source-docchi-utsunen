@@ -1,30 +1,26 @@
 // 1 刻みの処理（仕様書 2.7 節）。処理順は参照シミュレータの step と 1 対 1 で対応している。
-import {
-  B,
-  BLOCKS,
-  CALM_MULT,
-  DT,
-  ENEMIES,
-  RUSH_START,
-  SCORE,
-  TPS,
-  TRAP_ENEMY,
-  type EnemyKind,
-  type Lane,
-} from './balance.ts';
-import { drawBlock } from './deck.ts';
+import { AIM, B, BLOCKS, CALM_MULT, DT, ENEMIES, RUSH_START, SCORE, TPS, TRAP_ENEMY, type EnemyDef, type EnemyKind } from './balance.ts';
+import { drawRow } from './deck.ts';
 import { baseHp, bossHp, dpsOf, sizeRate, unlockedCount, waveOf, weaponStage } from './formulas.ts';
 import { nextRandom } from './rng.ts';
 import type { Block, Enemy, GameEvent, GameState } from './state.ts';
 
-/** 倒した敵の抜け殻がこの数を超え、列の半分以上を占めたら詰め直す */
-const COMPACT_AT = 256;
-
-function addEnemy(s: GameState, kind: EnemyKind | 'boss', hp: number, size: number, bossIndex = 0): void {
-  const e: Enemy = { id: s.nextId++, kind, hp, hp0: hp, size, born: s.t, bossIndex };
+function addEnemy(s: GameState, kind: EnemyKind | 'boss', hp: number, size: number, u: number, halfWidth: number, bossIndex = 0): void {
+  const e: Enemy = { id: s.nextId++, kind, hp, hp0: hp, size, born: s.t, bossIndex, u, halfWidth };
   s.enemies.push(e);
   s.fill += size;
   if (kind === 'revolving') s.growing.push(e);
+}
+
+/** 敵 count 体を、ひとかたまりで出す。まとめて出る敵は中心のまわりに散らばる */
+function addGroup(s: GameState, def: EnemyDef, count: number, hp: number): void {
+  const lo = AIM.enemyMin + def.halfWidth;
+  const hi = AIM.enemyMax - def.halfWidth;
+  const center = lo + (hi - lo) * nextRandom(s.positionRng);
+  for (let i = 0; i < count; i++) {
+    const u = count === 1 ? center : Math.min(hi, Math.max(lo, center + (nextRandom(s.positionRng) - 0.5) * AIM.groupSpread));
+    addEnemy(s, def.id, hp, def.size, u, def.halfWidth);
+  }
 }
 
 /** 3.3 節の手順 2。1 回の出現を行い、出した敵のサイズ合計を返す */
@@ -39,8 +35,7 @@ function spawnGroup(s: GameState, ev: GameEvent[]): number {
     r -= def.weight;
     if (r <= 0) break;
   }
-  const h = baseHp(s.t);
-  for (let i = 0; i < def.count; i++) addEnemy(s, def.id, h * def.hpMult, def.size);
+  addGroup(s, def, def.count, baseHp(s.t) * def.hpMult);
   ev.push({ type: 'enemySpawn', kind: def.id, count: def.count });
   return def.size * def.count;
 }
@@ -50,7 +45,7 @@ function spawnMult(s: GameState): number {
   return waveOf(s.t) % B.bossEvery === 0 ? 0 : B.rushMult;
 }
 
-/** 敵を 1 体消す。ボムで消したボス以外の敵にはスコアを入れない */
+/** 敵を 1 体消したあとの後始末。列からの取り除きは呼ぶ側が行う。ボムで消したボス以外の敵にはスコアを入れない */
 function removeEnemy(s: GameState, e: Enemy, byBomb: boolean, ev: GameEvent[]): void {
   e.hp = 0;
   s.fill -= e.size;
@@ -63,22 +58,24 @@ function removeEnemy(s: GameState, e: Enemy, byBomb: boolean, ev: GameEvent[]): 
   }
 }
 
-/** 先頭から順にダメージを与える。余りは次の敵へ持ち越す */
-function damageEnemies(s: GameState, dmg: number, ev: GameEvent[]): void {
-  while (dmg > 0 && s.head < s.enemies.length) {
-    const e = s.enemies[s.head]!;
-    if (e.hp <= dmg) {
+/**
+ * 列の先頭から順に、条件に合う敵へダメージを与える。余りは次の合う敵へ持ち越す。
+ * x を渡すと、その列に重なる敵だけが対象（プレイヤーの弾）。渡さなければ全員が対象（相棒）。
+ */
+function damageEnemies(s: GameState, dmg: number, ev: GameEvent[], x?: number): void {
+  let i = 0;
+  while (dmg > 0 && i < s.enemies.length) {
+    const e = s.enemies[i]!;
+    if (x !== undefined && Math.abs(e.u - x) > e.halfWidth + AIM.beamHalf) {
+      i++;
+    } else if (e.hp <= dmg) {
       dmg -= e.hp;
-      s.head++;
+      s.enemies.splice(i, 1);
       removeEnemy(s, e, false, ev);
     } else {
       e.hp -= dmg;
       dmg = 0;
     }
-  }
-  if (s.head >= COMPACT_AT && s.head * 2 >= s.enemies.length) {
-    s.enemies.splice(0, s.head);
-    s.head = 0;
   }
 }
 
@@ -86,8 +83,7 @@ function damageEnemies(s: GameState, dmg: number, ev: GameEvent[]): void {
 function bomb(s: GameState, ev: GameEvent[]): void {
   let remain: number = B.bombSize;
   const keep: Enemy[] = [];
-  for (let i = s.head; i < s.enemies.length; i++) {
-    const e = s.enemies[i]!;
+  for (const e of s.enemies) {
     if (e.kind === 'boss') {
       e.hp -= e.hp0 * B.bombBossRatio;
       if (e.hp > 0) keep.push(e);
@@ -100,7 +96,6 @@ function bomb(s: GameState, ev: GameEvent[]): void {
     }
   }
   s.enemies = keep;
-  s.head = 0;
 }
 
 function rankUp(s: GameState, by: number, ev: GameEvent[]): void {
@@ -112,7 +107,16 @@ function rankUp(s: GameState, by: number, ev: GameEvent[]): void {
 function applyBlock(s: GameState, b: Block, ev: GameEvent[]): void {
   s.got[b.kind]++;
   s.score += SCORE.block * waveOf(s.t);
-  ev.push({ type: 'blockBreak', kind: b.kind, id: b.id });
+  // 同じ段のもう片方を先に壊していれば「両取り」
+  const half = s.halfRows.indexOf(b.row);
+  const double = half >= 0;
+  if (double) {
+    s.halfRows.splice(half, 1);
+    s.doubles++;
+  } else if (s.blocks.some((o) => o.row === b.row)) {
+    s.halfRows.push(b.row);
+  }
+  ev.push({ type: 'blockBreak', kind: b.kind, id: b.id, double });
   switch (b.kind) {
     case 'rank':
       rankUp(s, 1, ev);
@@ -135,29 +139,26 @@ function applyBlock(s: GameState, b: Block, ev: GameEvent[]): void {
         s.capacity += B.expand;
       }
       break;
-    case 'trap': {
-      const h = baseHp(s.t);
-      for (let i = 0; i < B.trapCount; i++) addEnemy(s, TRAP_ENEMY.id, h * TRAP_ENEMY.hpMult, TRAP_ENEMY.size);
+    case 'trap':
+      for (let i = 0; i < B.trapCount; i++) addGroup(s, TRAP_ENEMY, 1, baseHp(s.t) * TRAP_ENEMY.hpMult);
       ev.push({ type: 'enemySpawn', kind: TRAP_ENEMY.id, count: B.trapCount });
       break;
-    }
     case 'hat':
       s.player.hats++;
       break;
   }
 }
 
-/** ゲームを 1 刻み進め、起きた出来事を返す。want は「どちらのレーンにいたいか」 */
-export function step(s: GameState, want: Lane): GameEvent[] {
+/** ゲームを 1 刻み進め、起きた出来事を返す。aim は「どの横位置に立ちたいか」 */
+export function step(s: GameState, aim: number): GameEvent[] {
   const ev: GameEvent[] = [];
   if (s.over) return ev;
   const p = s.player;
 
-  // 1. 入力
-  if (want !== p.lane && p.switchLeft <= 0) {
-    p.lane = want;
-    p.switchLeft = B.switchTime;
-  }
+  // 1. 入力。立ちたい位置へ、決まった速さで近づく
+  const want = Math.min(AIM.maxX, Math.max(AIM.minX, aim));
+  const reach = AIM.moveSpeed * DT;
+  p.x += Math.min(reach, Math.max(-reach, want - p.x));
 
   // 2. 警告とボス
   const wave = waveOf(s.t);
@@ -170,7 +171,7 @@ export function step(s: GameState, want: Lane): GameEvent[] {
   if (isBossWave && s.bossWave !== wave && tau >= RUSH_START) {
     s.bossWave = wave;
     s.bossesSpawned++;
-    addEnemy(s, 'boss', bossHp(s.t), B.bossSize, s.bossesSpawned);
+    addEnemy(s, 'boss', bossHp(s.t), B.bossSize, AIM.bossU, AIM.bossHalf, s.bossesSpawned);
     ev.push({ type: 'bossSpawn', index: s.bossesSpawned });
   }
 
@@ -186,37 +187,43 @@ export function step(s: GameState, want: Lane): GameEvent[] {
     for (const e of s.growing) e.hp += e.hp0 * B.revolvingRate * DT;
   }
 
-  // 5. ブロックの出現（HP は出現した瞬間のランクで決まり、相棒は含めない）
-  if (s.t >= s.nextBlockAt) {
-    const kind = drawBlock(s.deck);
-    const hp = BLOCKS[kind].cost * dpsOf(p.rank);
-    s.blocks.push({ id: s.nextId++, kind, hp, maxHp: hp, passAt: s.nextBlockAt + B.blockTravel });
-    s.nextBlockAt += B.blockInterval;
-    ev.push({ type: 'blockSpawn', kind, hp });
+  // 5. ブロックの段の出現（HP は出現した瞬間のランクで決まり、相棒は含めない）
+  if (s.t >= s.nextRowAt) {
+    const kinds = drawRow(s.deck);
+    const row = s.rowsSpawned++;
+    kinds.forEach((kind, col) => {
+      const hp = BLOCKS[kind].cost * dpsOf(p.rank);
+      s.blocks.push({ id: s.nextId++, kind, hp, maxHp: hp, passAt: s.nextRowAt + B.blockTravel, row, col, u: AIM.blockCols[col]! });
+      ev.push({ type: 'blockSpawn', kind, hp });
+    });
+    s.nextRowAt += B.blockInterval;
   }
 
   // 6. ブロックの通過
   while (s.blocks.length > 0 && s.blocks[0]!.passAt <= s.t) {
     const b = s.blocks.shift()!;
     s.missed[b.kind]++;
-    ev.push({ type: 'blockPass', kind: b.kind, damaged: b.hp < b.maxHp, id: b.id });
+    const half = s.halfRows.indexOf(b.row);
+    if (half >= 0) s.halfRows.splice(half, 1);
+    ev.push({ type: 'blockPass', kind: b.kind, damaged: b.hp < b.maxHp, left: b.hp / b.maxHp, id: b.id });
   }
 
-  // 7. 相棒
+  // 7. 相棒（列に関係なく、敵の先頭から撃つ）
   const dps = dpsOf(p.rank);
   if (p.buddies > 0) damageEnemies(s, dps * B.buddyDps * p.buddies * DT, ev);
 
-  // 8. プレイヤー
-  if (p.switchLeft > 0) {
-    p.switchLeft -= DT;
-  } else if (p.lane === 'enemy') {
-    damageEnemies(s, dps * DT, ev);
-  } else if (s.blocks.length > 0) {
-    const b = s.blocks[0]!;
-    b.hp -= dps * DT;
-    if (b.hp <= 0) {
-      s.blocks.shift();
-      applyBlock(s, b, ev);
+  // 8. プレイヤー。立っている列に重なる、最も手前の標的を撃つ
+  if (Math.abs(p.x) < AIM.border) {
+    damageEnemies(s, dps * DT, ev, p.x);
+  } else {
+    const i = s.blocks.findIndex((b) => Math.abs(b.u - p.x) <= AIM.blockHalf + AIM.beamHalf);
+    if (i >= 0) {
+      const b = s.blocks[i]!;
+      b.hp -= dps * DT;
+      if (b.hp <= 0) {
+        s.blocks.splice(i, 1);
+        applyBlock(s, b, ev);
+      }
     }
   }
 
