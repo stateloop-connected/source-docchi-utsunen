@@ -139,6 +139,7 @@ class App {
 
   private pause(): void {
     if (this.mode !== 'play' || this.session.state.over) return;
+    this.releaseKeys();
     this.mode = 'paused';
     this.focus = -1;
     this.synth.suspend();
