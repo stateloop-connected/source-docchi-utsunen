@@ -5,7 +5,7 @@ import type { Block, GameState } from '../core/state.ts';
 import { INK, circle, clamp, ellipse, fancyText, fillRoundRect, gradV, lerp, poly, text, type Ctx } from './draw.ts';
 import { formatHp } from './format.ts';
 import { CENTER_X, FRONT_Y, H, HALF_ROAD, HORIZON_Y, W, kOf, xOf, yOf } from './projection.ts';
-import { BLOCK_NUMBER, BLOCK_TOP, HAT_COLORS, drawSprite, drawSpriteCentered, sprite } from './sprites.ts';
+import { BLOCK_NUMBER, BLOCK_TOP, CRACK_LEVELS, HAT_COLORS, drawSprite, drawSpriteCentered, drawSpriteStretch, sprite } from './sprites.ts';
 import { LOOK, TONE, blockZ, type Bullet, type View } from './view.ts';
 
 /** 帽子は 12 個まで積んで描き、それ以上は「×N」と数字で出す（仕様書 6.7 節） */
@@ -336,12 +336,15 @@ function drawBarricade(ctx: Ctx, time: number, danger: boolean): void {
 function drawAimColumn(ctx: Ctx, s: GameState, v: View): void {
   if (s.over) return;
   const u = s.player.x;
-  const a = 0.1 + 0.03 * Math.sin(v.time * 9);
-  band(ctx, u - AIM.beamHalf, u + AIM.beamHalf, 0, v.aim.z, `rgba(255,255,255,${v.aim.hit ? a : a * 0.5})`);
+  const a = 0.15 + 0.04 * Math.sin(v.time * 9);
+  band(ctx, u - AIM.beamHalf, u + AIM.beamHalf, 0, v.aim.z, `rgba(255,255,255,${v.aim.hit ? a : a * 0.45})`);
+  // 列の両端に細い線を引いて、当たる幅をはっきり見せる
+  for (const side of [-1, 1]) band(ctx, u + side * AIM.beamHalf - 0.004, u + side * AIM.beamHalf + 0.004, 0, v.aim.z, `rgba(255,255,255,${v.aim.hit ? 0.4 : 0.18})`);
   if (v.aim.hit) {
-    const r = 26 * v.aim.k + 6;
-    ctx.strokeStyle = 'rgba(255,255,255,0.75)';
-    ctx.lineWidth = 2;
+    // 標的の足元に、脈打つ輪を出す
+    const r = (30 + 4 * Math.sin(v.time * 10)) * v.aim.k + 6;
+    ctx.strokeStyle = 'rgba(255,255,255,0.85)';
+    ctx.lineWidth = 2.5;
     ctx.beginPath();
     ctx.ellipse(v.aim.x, yOf(v.aim.z), r, r * 0.32, 0, 0, Math.PI * 2);
     ctx.stroke();
@@ -378,9 +381,14 @@ function drawEnemies(ctx: Ctx, s: GameState, v: View): void {
     // 現れた瞬間は小さく、すぐ元の大きさへふくらむ
     const pop = vis.age < 0.18 ? 0.4 + (vis.age / 0.18) * 0.6 : 1;
     const scale = vis.scale * pop;
-    const bob = Math.abs(Math.sin(v.time * 6 + vis.phase)) * 4 * scale;
+    // 歩いている間は大きく跳ね、並んで待っている間は小さく息をする
+    const stride = Math.sin(v.time * (vis.walking ? 11 : 4) + vis.phase);
+    const bob = vis.walking ? Math.abs(stride) * 5 * scale : 0;
     const target = e.id === v.aim.enemyId;
-    const push = target && hit ? -3 * scale : 0;
+    const struck = target && hit;
+    const push = struck ? -3 * scale : 0;
+    // 伸び縮み。撃たれた瞬間は横につぶれる
+    const squash = struck ? 0.12 : stride * (vis.walking ? 0.07 : 0.03);
     if (e.kind === 'boss') {
       const sp = sprite(vis.spriteId);
       const top = vis.y - sp.h * scale;
@@ -398,8 +406,12 @@ function drawEnemies(ctx: Ctx, s: GameState, v: View): void {
       }
       fancyText(ctx, bossName(e.bossIndex), vis.x, by - 13 * scale - 3, { size: Math.max(12, 23 * scale), top: '#ffffff', bottom: '#ffd0d0', maxWidth: 240 });
     } else {
-      drawSprite(ctx, vis.spriteId, vis.x, vis.y - bob + push, scale);
-      if (target && hit) flashOver(ctx, vis.spriteId, vis.x, vis.y - bob + push, scale, 0.55);
+      drawSpriteStretch(ctx, vis.spriteId, vis.x, vis.y - bob + push, scale * (1 + squash), scale * (1 - squash));
+      if (struck) {
+        ctx.globalAlpha = 0.55;
+        drawSpriteStretch(ctx, `${vis.spriteId}#flash`, vis.x, vis.y - bob + push, scale * (1 + squash), scale * (1 - squash));
+        ctx.globalAlpha = 1;
+      }
       // 削れた敵には、残り HP の細いバーを頭の上に出す（どれが倒れかけか分かるように）
       if (e.hp < e.hp0 && e.kind !== 'spam') {
         const sp = sprite(vis.spriteId);
@@ -442,6 +454,11 @@ function drawBlocks(ctx: Ctx, s: GameState, v: View): void {
     ctx.globalAlpha = 1;
     ellipse(ctx, cx, yOf(z) + 2 * k, 70 * k, 8 * k, 'rgba(10,14,30,0.35)');
     drawSprite(ctx, `block.${b.kind}`, cx, bottom, k);
+    // 削れるほど、ひびが増える
+    const crack = Math.min(CRACK_LEVELS, Math.floor((1 - ratio) * (CRACK_LEVELS + 1)));
+    if (crack > 0) drawSprite(ctx, `crack.${crack}`, cx, bottom, k);
+    // 今撃っているブロックは、輪郭を光らせて分かるようにする
+    if (b.id === v.aim.blockId && !s.over) flashOver(ctx, `block.${b.kind}`, cx, bottom, k, 0.1 + 0.06 * Math.sin(v.time * 12));
     if (beingHit && v.time - v.blockHitAt < 0.05) flashOver(ctx, `block.${b.kind}`, cx, bottom, k, 0.3);
     if (danger) {
       ctx.fillStyle = `rgba(255,40,40,${0.25 + 0.2 * Math.sin(v.time * 30)})`;
@@ -489,9 +506,15 @@ function drawBuddies(ctx: Ctx, s: GameState, v: View): void {
 
 function drawPlayer(ctx: Ctx, s: GameState, v: View): void {
   const m = v.muzzle();
-  const x = m.x - LOOK.weaponDx;
+  const x = v.bodyX();
   const stage = weaponStage(s.player.rank);
-  const bottom = LOOK.playerBottom + Math.sin(v.time * 4) * 1.2;
+  // 動いている間は進む向きへ体を傾け、小刻みに跳ねる
+  const speed = clamp(v.vx / 720, -1, 1);
+  const bottom = LOOK.playerBottom + Math.sin(v.time * 4) * 1.2 - Math.abs(Math.sin(v.time * 22)) * 4 * Math.abs(speed);
+  ctx.save();
+  ctx.translate(x, bottom);
+  ctx.rotate(speed * 0.16);
+  ctx.translate(-x, -bottom);
   // ランクが上がった直後は足元から光る
   const glowAge = v.time - v.rankUpAt;
   if (glowAge < 0.5) {
@@ -508,6 +531,7 @@ function drawPlayer(ctx: Ctx, s: GameState, v: View): void {
   const sinceShot = v.time - v.shotAt;
   const recoil = v.shooting ? clamp(1 - sinceShot / 0.06, 0, 1) * 3.5 : 0;
   drawSprite(ctx, `weapon.${stage}`, m.x, bottom - LOOK.weaponUp + recoil);
+  ctx.restore();
   if (v.shooting && sinceShot < 0.05 && MUZZLE_STAGES.has(stage)) {
     ctx.globalCompositeOperation = 'lighter';
     drawSpriteCentered(ctx, 'muzzle', m.x, m.y - 6, 0.5 + (stage - 3) * 0.07, v.time * 40);
@@ -655,16 +679,29 @@ function drawEffects(ctx: Ctx, v: View): void {
   }
   for (const n of v.numbers) {
     const t = n.age / LOOK.numberLife;
-    const pop = n.age < 0.07 ? 1.5 - (n.age / 0.07) * 0.5 : 1;
+    // 足し込まれるたびに弾む
+    const since = v.time - n.bumpedAt;
+    const pop = since < 0.08 ? 1.45 - (since / 0.08) * 0.45 : 1;
     const tone = n.block ? TONE.gold : TONE.white;
     ctx.globalAlpha = clamp(1.7 - t * 1.7, 0, 1);
     ctx.save();
     ctx.translate(n.x, n.y - t * 38);
     ctx.rotate(n.tilt);
-    fancyText(ctx, n.label, 0, 0, { size: 19 * pop, top: tone[0], bottom: tone[1], strokeWidth: 4, shadow: 1.5 });
+    fancyText(ctx, n.label, 0, 0, { size: 22 * pop, top: tone[0], bottom: tone[1], strokeWidth: 4.5, shadow: 1.5 });
     ctx.restore();
   }
   ctx.globalAlpha = 1;
+  // 壊したブロックの中身が、弧を描いて手元へ飛んでくる
+  for (const p of v.pickups) {
+    const t = clamp(p.age / LOOK.pickupTime, 0, 1);
+    const e = t * t;
+    const x = lerp(p.x0, v.bodyX(), e);
+    const y = lerp(p.y0, LOOK.playerBottom - 50, e) - Math.sin(t * Math.PI) * 70;
+    ctx.globalCompositeOperation = 'lighter';
+    drawSpriteCentered(ctx, `glow.${p.kind}`, x, y, 0.7);
+    ctx.globalCompositeOperation = 'source-over';
+    drawSpriteCentered(ctx, `icon.${p.kind}`, x, y, 0.9 + 0.3 * Math.sin(t * Math.PI), t * 5);
+  }
 }
 
 /** ゲームオーバー: 敵が防衛線を越えて画面を覆う */

@@ -750,5 +750,44 @@ export function initSprites(): void {
   HAT_COLORS.forEach((color, i) => make(`hat.${i}`, 38, 18, (c) => drawHat(c, color)));
   WEAPONS.forEach((_, i) => make(`weapon.${i}`, WEAPON_SPRITE.w, WEAPON_SPRITE.h, WEAPON_DRAWERS[i]!));
   make('muzzle', 64, 64, drawMuzzle, { noOutline: true });
+  for (const kind of BLOCK_KINDS) if (kind !== 'trap') make(`icon.${kind}`, 40, 40, (c) => drawIcon(c, kind, 20, 20, 36));
+  for (let level = 1; level <= CRACK_LEVELS; level++) make(`crack.${level}`, 150, 110, (c) => drawCracks(c, level), { noOutline: true });
   for (let i = 0; i < 3; i++) make(`cloud.${i}`, 150, 70, (c) => drawCloud(c, i), { noOutline: true });
+}
+
+/** 下端の中央を (cx, bottom) に合わせ、横と縦を別々の倍率で描く（歩く・撃たれるときの伸び縮み用） */
+export function drawSpriteStretch(ctx: Ctx, id: string, cx: number, bottom: number, sx: number, sy: number): void {
+  const s = sprite(id);
+  const w = (s.w + PAD * 2) * sx;
+  const h = (s.h + PAD * 2) * sy;
+  ctx.drawImage(s.canvas, cx - w / 2, bottom - h + PAD * sy, w, h);
+}
+
+/** ブロックのひびの段階の数。削れるほど段階が上がる */
+export const CRACK_LEVELS = 3;
+
+/** ブロックの正面に重ねるひび。段階が上がるほど本数が増える */
+function drawCracks(c: Ctx, level: number): void {
+  // ひびの折れ線（正面の左上を原点とした座標）。先頭から level × 2 本を描く
+  const lines: readonly (readonly number[])[] = [
+    [118, 20, 104, 38, 112, 52, 96, 70],
+    [20, 100, 36, 84, 30, 70, 48, 58],
+    [70, 18, 62, 34, 74, 46],
+    [140, 76, 122, 82, 112, 100],
+    [8, 40, 24, 46, 34, 36, 52, 44],
+    [84, 104, 78, 88, 92, 78, 86, 62],
+  ];
+  c.lineJoin = 'round';
+  c.lineCap = 'round';
+  for (let i = 0; i < Math.min(lines.length, level * 2); i++) {
+    const pts = lines[i]!;
+    for (const [color, width, dy] of [['rgba(255,255,255,0.55)', 1.5, 1.5], ['rgba(10,14,30,0.8)', 2.4, 0]] as const) {
+      c.strokeStyle = color;
+      c.lineWidth = width;
+      c.beginPath();
+      c.moveTo(pts[0]!, pts[1]! + dy);
+      for (let j = 2; j < pts.length; j += 2) c.lineTo(pts[j]!, pts[j + 1]! + dy);
+      c.stroke();
+    }
+  }
 }

@@ -1,10 +1,10 @@
 // プレイ中の表示類（仕様書 6.7 節）と、画面中央に出る演出の文字。
-import { B, RUSH_START } from '../core/balance.ts';
+import { AIM, B, RUSH_START } from '../core/balance.ts';
 import { bossName, dpsOf, waveOf, weaponName, weaponStage } from '../core/formulas.ts';
 import type { GameState } from '../core/state.ts';
 import { INK, circle, clamp, fancyText, fillRoundRect, gradV, roundRect, text, textWidth, type Ctx } from './draw.ts';
 import { formatComma, formatNumber } from './format.ts';
-import { W } from './projection.ts';
+import { W, xOf, yOf } from './projection.ts';
 import { drawSpriteCentered } from './sprites.ts';
 import { LOOK, type View } from './view.ts';
 
@@ -187,14 +187,21 @@ function drawBossIntro(ctx: Ctx, v: View): void {
   ctx.globalAlpha = 1;
 }
 
-function drawGuide(ctx: Ctx, s: GameState): void {
+/** 開始直後の案内。遊ぶ場所をふさがないよう、道の上に小さく書く */
+function drawGuide(ctx: Ctx, s: GameState, v: View): void {
   if (s.t >= GUIDE_SECONDS) return;
-  ctx.globalAlpha = clamp(GUIDE_SECONDS - s.t, 0, 1);
-  fillRoundRect(ctx, 58, 468, 424, 88, 20, 'rgba(10,14,30,0.62)');
-  fancyText(ctx, '← 左右に動いて狙う →', W / 2, 498, { size: 30, top: '#ffffff', bottom: '#cfe6ff' });
-  text(ctx, '真ん中は敵、両端は強化ブロック', W / 2, 536, { size: 19, weight: 800, color: '#e8eefc' });
+  const fade = clamp(GUIDE_SECONDS - s.t, 0, 1);
+  const bounce = Math.abs(Math.sin(v.time * 5)) * 6;
+  ctx.globalAlpha = fade;
+  fillRoundRect(ctx, 76, 104, 388, 34, 17, 'rgba(10,14,30,0.7)');
+  text(ctx, '← 左右に動いて狙う →　撃つのは自動', W / 2, 122, { size: 16, weight: 900, color: '#ffffff', maxWidth: 360 });
+  // 真ん中は敵、両端は強化ブロック
+  ctx.globalAlpha = fade * 0.92;
+  fancyText(ctx, '▼ 敵 ▼', xOf(0, 0.1), yOf(0.1) + bounce, { size: 30, top: '#ffd0d0', bottom: '#ff5c5c' });
+  for (const u of AIM.blockCols) fancyText(ctx, '▼強化', xOf(u, 0.1), yOf(0.1) + bounce, { size: 24, top: '#ffffff', bottom: '#8fd0ff' });
   ctx.globalAlpha = 1;
 }
+
 
 function drawWeaponBar(ctx: Ctx, s: GameState): void {
   const rank = s.player.rank;
@@ -216,7 +223,9 @@ function drawWeaponBar(ctx: Ctx, s: GameState): void {
 export function drawHud(ctx: Ctx, s: GameState, v: View, o: HudOptions): void {
   drawGauge(ctx, s, v, o.demo ? 460 : 500);
   drawWave(ctx, s, o.demo ? 20 : 66);
-  fancyText(ctx, formatComma(s.score), W - 20, 62, { size: 28, top: '#ffffff', bottom: '#ffe9a8', align: 'right' });
+  // スコアは増えた瞬間に弾む
+  const bump = v.time - v.scoreAt < 0.1 ? 1.14 : 1;
+  fancyText(ctx, formatComma(s.score), W - 20, 62, { size: 28 * bump, top: '#ffffff', bottom: '#ffe9a8', align: 'right' });
   if (o.demo) {
     const line = `${weaponName(s.player.rank)} Lv.${s.player.rank}　DPS ${formatNumber(dpsOf(s.player.rank))}`;
     text(ctx, line, W - 20, 90, { size: 15, weight: 900, align: 'right', stroke: INK, strokeWidth: 3.5 });
@@ -225,7 +234,7 @@ export function drawHud(ctx: Ctx, s: GameState, v: View, o: HudOptions): void {
     text(ctx, 'スコア', W - 20, 88, { size: 12, weight: 900, align: 'right', color: '#e8eefc', stroke: INK, strokeWidth: 3 });
     drawWeaponBar(ctx, s);
     drawCenterTop(ctx, s, v, 150, false);
-    drawGuide(ctx, s);
+    drawGuide(ctx, s, v);
   }
   drawToasts(ctx, v);
   drawBossIntro(ctx, v);

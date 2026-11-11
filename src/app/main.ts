@@ -144,6 +144,7 @@ class App {
     const review = reviewPlay(s, this.session.blockShare, this.session.nearMisses);
     this.result = { score, highScore: this.highScore, newRecord, wave: waveOf(s.t), weapon: weaponName(s.player.rank), iq: estimatedIq(score), review };
     this.resultAt = this.time;
+    if (newRecord) this.synth.newRecord();
     this.mode = 'result';
     this.focus = -1;
   }
