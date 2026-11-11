@@ -66,8 +66,8 @@ export const LOOK = {
   pickupTime: 0.38,
   /** 通過までこの秒数を切ってから壊すと「ギリギリ！」 */
   closeCall: 0.6,
-  /** 埋まり度がこの割合を超えたあと recoverTo を下回ると「持ち直した！」 */
-  recoverFrom: 0.8,
+  /** 埋まり度がこの割合（危険の警告が出る割合と同じ）を超えたあと recoverTo を下回ると「持ち直した！」 */
+  recoverFrom: 0.7,
   recoverTo: 0.5,
   /** mowWindow 秒のあいだに mowKills 体以上倒すと「なぎ倒し！」。次に出すまで mowCooldown 秒あける */
   mowWindow: 0.6,

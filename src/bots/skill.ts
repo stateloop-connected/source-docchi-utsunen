@@ -40,8 +40,15 @@ const CHECK = {
   maxFillRatio: 0.92,
 } as const;
 
-/** 埋まり度の割合がこれを超えたら、ボムを最優先にする */
+/** 埋まり度の割合がこれを超えたら、ボムを最優先にし、敵を撃つのをやめてでも取りに行く */
 const BOMB_FIRST_RATIO = 0.5;
+
+/** 急ぎのボムを、どの段のどのブロックよりも先に選ぶための順位の下駄 */
+const URGENT = 1e6;
+
+function isUrgentBomb(b: Block, ratio: number): boolean {
+  return b.kind === 'bomb' && ratio > BOMB_FIRST_RATIO;
+}
 
 function isJunk(kind: BlockKind): boolean {
   return kind === 'trap' || kind === 'hat';
@@ -60,11 +67,12 @@ function pickBlock(s: GameState, p: SkillParams, fooled: (b: Block) => boolean):
       if (b.kind === 'bomb' && s.fill < CHECK.bombMinFill) continue;
       const need = timeToBreak(s, b);
       if (need > b.passAt - s.t - CHECK.passMargin) continue;
-      if (s.fill + sizeRate(s.t) * need > CHECK.maxFillRatio * s.capacity) continue;
+      // 急ぎのボムは、取りに行く間に溜まる分を気にしない（溜まった敵を消すためのものなので）
+      if (!isUrgentBomb(b, ratio) && s.fill + sizeRate(s.t) * need > CHECK.maxFillRatio * s.capacity) continue;
     }
-    // 通過の早い段を先に。同じ段の中では優先順で選ぶ
-    const priority = b.kind === 'bomb' && ratio > BOMB_FIRST_RATIO ? -1 : BLOCK_PRIORITY.indexOf(b.kind);
-    const rank = b.row * 100 + priority;
+    // 通過の早い段を先に。同じ段の中では優先順で選ぶ。急ぎのボムは、段に関係なく最優先
+    const urgent = isUrgentBomb(b, ratio);
+    const rank = urgent ? b.row - URGENT : b.row * 100 + BLOCK_PRIORITY.indexOf(b.kind);
     if (rank < bestRank) {
       bestRank = rank;
       best = b;
@@ -96,6 +104,7 @@ export function createSkillBot(seed: number, p: SkillParams): Bot {
     const b = pickBlock(s, p, fooled);
     const ratio = s.fill / s.capacity;
     if (!b) goingForBlocks = false;
+    else if (isUrgentBomb(b, ratio)) goingForBlocks = true;
     else if (goingForBlocks) goingForBlocks = ratio <= p.hi;
     else goingForBlocks = ratio < p.lo;
     targetId = goingForBlocks && b ? b.id : 0;

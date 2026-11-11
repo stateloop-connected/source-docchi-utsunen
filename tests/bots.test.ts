@@ -238,3 +238,34 @@ describe('参照シミュレータとの一致', () => {
     });
   }
 });
+
+describe('急ぎのボム', () => {
+  const steady = { ...SKILL_BOTS.casual, lapse: 0, avoid: 1 };
+
+  it('埋まり度 50% 超のボムは、敵を撃つのをやめてでも取りに行く', () => {
+    const s = withFill(0.7);
+    addBlock(s, 'bomb', 0);
+    expect(createSkillBot(1, steady).act(s)).toBe(LEFT);
+    // 50% 以下なら、ふつうのブロックと同じ扱い（hi を超えているので取りに行かない）
+    const calm = withFill(0.45);
+    addBlock(calm, 'bomb', 0);
+    expect(createSkillBot(1, { ...steady, lo: 0.3 }).act(calm)).toBe(0);
+  });
+
+  it('急ぎのボムは、手前の段のランクアップより優先する', () => {
+    const s = withFill(0.7);
+    addBlock(s, 'rank', 1, { row: 1, passAt: 6 });
+    addBlock(s, 'bomb', 0, { row: 2, passAt: 11 });
+    expect(createSkillBot(1, steady).act(s)).toBe(LEFT);
+  });
+
+  it('check ありのボットは、急ぎのボムなら溢れそうでも取りに行く。間に合わないなら行かない', () => {
+    const p = { ...SKILL_BOTS.expert };
+    const s = withFill(0.93);
+    addBlock(s, 'bomb', 0, { hpRatio: 0.1 });
+    expect(createSkillBot(1, p).act(s)).toBe(LEFT);
+    const late = withFill(0.93);
+    addBlock(late, 'bomb', 0, { passAt: 0.3 });
+    expect(createSkillBot(1, p).act(late)).toBe(0);
+  });
+});

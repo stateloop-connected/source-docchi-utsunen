@@ -289,18 +289,19 @@ class Bot:
         for b in g.blocks:
             if any(o.col == b.col and o.pass_t < b.pass_t for o in g.blocks): continue   # 同じ列の手前にふさがれている
             if b.kind in ("trap", "hat") and not self.fooled(b): continue
+            urgent = b.kind == "bomb" and ratio > 0.5
             if self.check:
                 if b.kind == "bomb" and g.fill < 25: continue
                 need = b.hp / g.dps + abs(b.u - g.x) / p["MOVE_SPEED"]
                 if need > b.pass_t - g.t - 0.1: continue
-                if g.fill + size_rate(g.t, p) * need > 0.92 * g.cap: continue
-            pr = -1 if b.kind == "bomb" and ratio > 0.5 else PRIORITY.index(b.kind)
-            r = b.row * 100 + pr
+                if not urgent and g.fill + size_rate(g.t, p) * need > 0.92 * g.cap: continue
+            r = b.row - 1e6 if urgent else b.row * 100 + PRIORITY.index(b.kind)   # 急ぎのボムは段に関係なく最優先
             if r < best_r: best_r = r; best = b
         return best
     def decide(self, g):
         b = self.pick_block(g); ratio = g.fill / g.cap
         if not b: self.going = False
+        elif b.kind == "bomb" and ratio > 0.5: self.going = True            # 急ぎのボムは、敵を撃つのをやめてでも取りに行く
         elif self.going: self.going = ratio <= self.hi
         else: self.going = ratio < self.lo
         self.target = b.id if self.going and b else 0
