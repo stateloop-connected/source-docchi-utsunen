@@ -175,6 +175,7 @@ export function drawPause(ctx: Ctx): void {
   ctx.fillStyle = 'rgba(8,10,24,0.74)';
   ctx.fillRect(0, 0, W, H);
   fancyText(ctx, '一時停止', W / 2, 318, { size: 50, top: '#ffffff', bottom: '#bcd7ff' });
+  text(ctx, '（離席中）', W / 2, 362, { size: 17, weight: 800, color: '#cfe0ff' });
   // 操作の説明
   fillRoundRect(ctx, 70, 668, 400, 170, 18, 'rgba(255,255,255,0.1)');
   const help: readonly (readonly [string, string])[] = [

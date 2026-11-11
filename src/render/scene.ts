@@ -451,7 +451,7 @@ function drawPlayer(ctx: Ctx, s: GameState, v: View): void {
     drawSpriteCentered(ctx, 'glow.gold', x, bottom - 48, 1.6 + glowAge * 2);
     ctx.globalAlpha = 1;
   }
-  drawSprite(ctx, 'player', x, bottom);
+  drawSprite(ctx, v.suit ? 'player.suit' : 'player', x, bottom);
   const hats = Math.min(s.player.hats, MAX_HATS_DRAWN);
   for (let i = 0; i < hats; i++) drawSprite(ctx, `hat.${i % HAT_COLORS.length}`, x, bottom - 89 - i * 8);
   if (s.player.hats > MAX_HATS_DRAWN) {

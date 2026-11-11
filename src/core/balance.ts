@@ -137,7 +137,7 @@ export interface BlockDef {
 /** 4.2 節 */
 export const BLOCKS: Readonly<Record<BlockKind, BlockDef>> = {
   rank: { name: 'ランクアップ', cost: 3.5 },
-  gold: { name: '金のランクアップ', cost: 7.0 },
+  gold: { name: 'エナドリ', cost: 7.0 },
   buddy: { name: '相棒', cost: 4.0 },
   bomb: { name: '一斉削除', cost: 1.5 },
   vacation: { name: '有給休暇', cost: 2.0 },

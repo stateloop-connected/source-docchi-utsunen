@@ -441,19 +441,15 @@ function drawIcon(c: Ctx, kind: BlockKind, cx: number, cy: number, s: number): v
   c.lineCap = 'round';
   c.lineJoin = 'round';
   switch (kind) {
-    case 'rank':
     case 'gold':
-      // 上向きの矢羽根 2 枚（金は星を添える）
+      // エナジードリンクの缶に、稲妻
+      fillRoundRect(c, -11, -15, 22, 32, 5, '#ffffff');
+      fillRoundRect(c, -8, -19, 16, 6, 2.5, 'rgba(255,255,255,0.8)');
+      poly(c, [3, -10, -7, 3, -1, 3, -4, 13, 7, -1, 1, -1], '#f5a000');
+      break;
+    case 'rank':
+      // 上向きの矢羽根 2 枚
       for (const y of [-6, 8]) poly(c, [-15, y + 6, 0, y - 10, 15, y + 6, 15, y + 13, 0, y - 2, -15, y + 13], '#ffffff');
-      if (kind === 'gold') {
-        const pts: number[] = [];
-        for (let i = 0; i < 10; i++) {
-          const a = -Math.PI / 2 + (i * Math.PI) / 5;
-          const r = i % 2 ? 3 : 7.5;
-          pts.push(13 + Math.cos(a) * r, -13 + Math.sin(a) * r);
-        }
-        poly(c, pts, '#fff8c4');
-      }
       break;
     case 'buddy':
       ellipse(c, 0, 4, 18, 9, '#ffffff');
@@ -542,14 +538,20 @@ function drawBlock(c: Ctx, kind: BlockKind): void {
 
 // ---------------------------------------------------------------- プレイヤーまわり
 
-function drawPlayer(c: Ctx): void {
+/** suit が真なら、スーツ姿（月曜日を倒したあとの出社スタイル） */
+function drawPlayer(c: Ctx, suit: boolean): void {
+  const pants = suit ? '#262b3a' : '#2b3a67';
+  const shoes = suit ? '#17181d' : '#f4f6fa';
+  const sleeve = suit ? '#34405f' : '#ff6b3d';
+  const jacket = suit ? (['#46537a', '#262f4c'] as const) : (['#ff8a55', '#f0502a'] as const);
+  const bag = suit ? (['#8a5f38', '#5a3a1e'] as const) : (['#4f5d86', '#2f3a5c'] as const);
   // 奥を向いて立っている後ろ姿。頭を大きめにして、遠目にも人だと分かるようにする
-  fillRoundRect(c, 23, 66, 12, 22, 5, '#2b3a67');
-  fillRoundRect(c, 41, 66, 12, 22, 5, '#2b3a67');
-  fillRoundRect(c, 20, 84, 17, 9, 4, '#f4f6fa');
-  fillRoundRect(c, 39, 84, 17, 9, 4, '#f4f6fa');
+  fillRoundRect(c, 23, 66, 12, 22, 5, pants);
+  fillRoundRect(c, 41, 66, 12, 22, 5, pants);
+  fillRoundRect(c, 20, 84, 17, 9, 4, shoes);
+  fillRoundRect(c, 39, 84, 17, 9, 4, shoes);
   // 右腕は横に伸ばして武器を構える
-  c.strokeStyle = '#ff6b3d';
+  c.strokeStyle = sleeve;
   c.lineWidth = 10;
   c.lineCap = 'round';
   c.beginPath();
@@ -561,17 +563,19 @@ function drawPlayer(c: Ctx): void {
   c.lineTo(14, 60);
   c.stroke();
   roundRect(c, 18, 38, 40, 36, 13);
-  c.fillStyle = gradV(c, 38, 74, '#ff8a55', '#f0502a');
+  c.fillStyle = gradV(c, 38, 74, jacket[0], jacket[1]);
   c.fill();
   // リュック
   roundRect(c, 25, 44, 26, 25, 7);
-  c.fillStyle = gradV(c, 44, 69, '#4f5d86', '#2f3a5c');
+  c.fillStyle = gradV(c, 44, 69, bag[0], bag[1]);
   c.fill();
   c.fillStyle = 'rgba(255,255,255,0.25)';
   c.fillRect(29, 52, 18, 3);
   circle(c, 67, 52, 5.5, '#ffd9b8');
   circle(c, 13.5, 61, 5.5, '#ffd9b8');
   fillRoundRect(c, 33, 31, 10, 10, 3, '#f2bf95');
+  // スーツのときは、白いシャツの襟をのぞかせる
+  if (suit) fillRoundRect(c, 28, 36.5, 20, 5, 2.5, '#ffffff');
   c.beginPath();
   c.arc(38, 20, 18, 0, Math.PI * 2);
   c.fillStyle = radial(c, 31, 11, 24, [[0, '#7a4f2e'], [1, '#3e2614']]);
@@ -870,7 +874,8 @@ export function initSprites(): void {
     make(`block.${kind}`, 150, 110, (c) => drawBlock(c, kind), { flash: true });
     make(`glow.${kind}`, 100, 100, (c) => drawGlow(c, BLOCK_COLORS[kind]), { noOutline: true });
   }
-  make('player', 76, 94, drawPlayer, { shadow: [38, 92, 28, 5] });
+  make('player', 76, 94, (c) => drawPlayer(c, false), { shadow: [38, 92, 28, 5] });
+  make('player.suit', 76, 94, (c) => drawPlayer(c, true), { shadow: [38, 92, 28, 5] });
   make('buddy', 54, 32, drawBuddy, { shadow: [27, 28, 26, 6] });
   make('buddy.ai', 56, 48, drawBuddyAi);
   HAT_COLORS.forEach((color, i) => make(`hat.${i}`, 38, 18, (c) => drawHat(c, color)));

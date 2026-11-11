@@ -232,9 +232,11 @@ interface BlockSpot {
 /** 2 台目の相棒（AI）が来たときの言葉 */
 const AI_BUDDY_LABEL = 'AI 相棒 参上！';
 const AI_BUDDY_LINE = '「お手伝いできることはありますか？」';
+/** エナドリ（金のランクアップ）を取ったときのひとこと */
+const ENERGY_LINE = '元気の前借り';
 const EFFECT_LABEL: Readonly<Record<BlockKind, string>> = {
   rank: 'ランクアップ！',
-  gold: 'ランク +2！！',
+  gold: 'エナドリ！ ランク +2',
   buddy: '相棒 参上！',
   bomb: '一斉削除！',
   vacation: '有給休暇！',
@@ -322,6 +324,8 @@ export class View {
   private lastDefeatWordAt = -10;
   /** この回で取った相棒の数（2 台目は AI なので、出す言葉を変える） */
   private buddiesGot = 0;
+  /** スーツ姿か。最初のボス（月曜日）を倒したら、週が始まったのでスーツに着替える。見た目だけ */
+  suit = false;
   /** 前のフレームで、有給休暇の効果中だったか（切れた瞬間を知るため） */
   private onVacation = false;
   /** 会心が続き始めた時刻（続いていなければ負の値）と、最後に会心だった時刻。「狙い撃ち！」の判定用 */
@@ -723,6 +727,7 @@ export class View {
           if (e.kind === 'buddy') this.buddiesGot++;
           this.toast('effect', e.kind === 'buddy' && this.buddiesGot === 2 ? AI_BUDDY_LABEL : EFFECT_LABEL[e.kind], W / 2, 352, e.kind === 'trap' ? 46 : 38, EFFECT_TONE[e.kind], 0.9);
           if (e.kind === 'buddy' && this.buddiesGot === 2) this.toast('aside', AI_BUDDY_LINE, W / 2, 398, 22, TONE.white, 1.8);
+          if (e.kind === 'gold') this.toast('aside', ENERGY_LINE, W / 2, 398, 22, TONE.white, 1.5);
           this.sfx?.blockBreak();
           if (e.kind === 'trap') {
             if (f) this.burst(f.x, f.y, 14, 'rgba(220,40,40,0.8)', 120, 0.9, 16, -60);
@@ -780,6 +785,7 @@ export class View {
         case 'bossKill':
           this.toast('effect', `${bossName(e.index)} 撃破！`, W / 2, 352, 40, TONE.gold, 1.4);
           this.toast('aside', bossLines(e.index).defeat, W / 2, 398, 22, TONE.white, 1.8);
+          this.suit = true;
           this.sfx?.bossKill();
           break;
         case 'gameOver':
