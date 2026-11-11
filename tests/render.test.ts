@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatComma, formatHp, formatNumber } from '../src/render/format.ts';
+import { formatComma, formatHp, formatNumber, formatPower } from '../src/render/format.ts';
 import { AIM } from '../src/core/balance.ts';
 import { dpsOf } from '../src/core/formulas.ts';
 import { createGame } from '../src/core/state.ts';
@@ -38,6 +38,29 @@ describe('数字の表示', () => {
     expect(formatComma(999)).toBe('999');
     expect(formatComma(151365.9)).toBe('151,365');
     expect(formatComma(12438565)).toBe('12,438,565');
+  });
+});
+
+describe('社会人力の表示', () => {
+  it('1 万未満は 3 桁区切りの整数', () => {
+    expect(formatPower(5)).toBe('5');
+    expect(formatPower(9999.9)).toBe('9,999');
+  });
+
+  it('1 万以上は万・億・兆・京・垓を付けて有効数字 3 桁。端数は切り捨てる', () => {
+    expect(formatPower(10000)).toBe('1.00万');
+    expect(formatPower(262345)).toBe('26.2万');
+    expect(formatPower(5300000)).toBe('530万');
+    expect(formatPower(99999999)).toBe('9,999万');
+    expect(formatPower(721000000)).toBe('7.21億');
+    expect(formatPower(1.65e10)).toBe('165億');
+    expect(formatPower(5.02e16)).toBe('5.02京');
+    expect(formatPower(3e20)).toBe('3.00垓');
+  });
+
+  it('垓でも足りなければ「測定不能」', () => {
+    expect(formatPower(9.9e23)).toBe('9,900垓');
+    expect(formatPower(1e24)).toBe('測定不能');
   });
 });
 

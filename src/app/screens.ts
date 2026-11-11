@@ -1,6 +1,6 @@
 // タイトル・一時停止・リザルトの重ね描きと、各画面のボタン配置（仕様書 5.3 節・6.6 節）。
 import { INK, clamp, fancyText, fillRoundRect, gradV, roundRect, text, type Ctx } from '../render/draw.ts';
-import { formatComma } from '../render/format.ts';
+import { formatComma, formatPower } from '../render/format.ts';
 import { H, HORIZON_Y, W } from '../render/projection.ts';
 import { hash } from '../render/world.ts';
 import { AIM } from '../core/balance.ts';
@@ -9,14 +9,12 @@ import { CONTINUE_COST, GEM } from './shop.ts';
 import type { Button } from './ui.ts';
 
 /** 煽り文句。4 秒ごとに切り替える */
-export const TAUNTS = ['未読 999+ 件、さばけますか？', '99% の人が WAVE 5 に届かない', '月曜日が来る前に倒せ', 'IQ 120 以上ならクリア可能', '簡単そうに見えますよね？', '締切もリボ払いも撃てばいい', '3 分遊ぶと止まらなくなる'] as const;
+export const TAUNTS = ['未読 999+ 件、さばけますか？', '99% の人が WAVE 5 に届かない', '月曜日が来る前に倒せ', '社会人力 53 万以上ならクリア可能', '簡単そうに見えますよね？', '締切もリボ払いも撃てばいい', '3 分遊ぶと止まらなくなる'] as const;
 export const TAUNT_SECONDS = 4;
 /** 出来事に反応する字幕の表示時間 */
 export const CAPTION_SECONDS = 1.5;
 /** デモが負けたあと「FAIL」を出す時間 */
 export const FAIL_SECONDS = 2;
-/** リザルトで「（広告の人と同じ）」と添える推定 IQ の上限。デモのスコアの中央値がこの値になる */
-export const AD_IQ = 64;
 /** リザルトのスコアが 0 から数え上がる時間 */
 const COUNT_UP_SECONDS = 0.8;
 
@@ -26,7 +24,8 @@ export interface ResultStats {
   newRecord: boolean;
   wave: number;
   weapon: string;
-  iq: number;
+  /** 社会人力（スコアから出す、意味のない大きな数字） */
+  power: number;
   review: Review;
 }
 
@@ -234,11 +233,9 @@ export function drawResult(ctx: Ctx, r: ResultStats, message: string | null, age
   row('会心', `${Math.round(r.review.critRate * 100)}%`, 456);
   divider(476);
 
-  // 左に推定 IQ、右に称号
-  const ad = r.iq <= AD_IQ;
-  text(ctx, '推定 IQ', 160, 494, { size: 16, weight: 900, color: '#6b7280' });
-  fancyText(ctx, String(r.iq), 160, 540, { size: 62, top: ad ? '#ff8a8a' : '#7fb6ff', bottom: ad ? '#e01010' : '#1f5fe0', stroke: '#ffffff', strokeWidth: 6, shadow: 0 });
-  if (ad) text(ctx, '（広告の人と同じ）', 160, 586, { size: 16, weight: 900, color: '#e01010' });
+  // 左に社会人力、右に称号
+  text(ctx, '推定 社会人力', 160, 494, { size: 16, weight: 900, color: '#6b7280' });
+  fancyText(ctx, formatPower(r.power), 160, 540, { maxWidth: 212, size: 62, top: '#7fb6ff', bottom: '#1f5fe0', stroke: '#ffffff', strokeWidth: 6, shadow: 0 });
   ctx.fillStyle = '#dfe4ee';
   ctx.fillRect(278, 484, 2, 108);
   text(ctx, '称号', 384, 494, { size: 16, weight: 900, color: '#6b7280' });
@@ -275,7 +272,7 @@ export function drawResult(ctx: Ctx, r: ResultStats, message: string | null, age
 
 /** 「結果をコピー」でクリップボードに入れる文字列（仕様書 2.6 節） */
 export function resultText(r: ResultStats): string {
-  return `どっち撃つねん｜WAVE ${r.wave}・スコア ${formatComma(r.score)}・推定IQ ${r.iq}`;
+  return `どっち撃つねん｜WAVE ${r.wave}・スコア ${formatComma(r.score)}・社会人力 ${formatPower(r.power)}`;
 }
 
 /** 本編の開始直後に、画面の上のほうへ出すひとこと。left は消えるまでの秒数 */

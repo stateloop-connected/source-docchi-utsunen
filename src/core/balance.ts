@@ -188,12 +188,12 @@ export const WEAPONS: readonly string[] = [
 /** 4.4 節。弾は見た目だけ。発射数 = 秒間 base + ランク × perRank、上限 max */
 export const FIRE_RATE = { base: 8, perRank: 0.2, max: 20 } as const;
 
-/** 2.6 節のスコアと推定 IQ */
+/** 2.6 節のスコアと社会人力 */
 export const SCORE = {
   enemyPerSize: 10,
   block: 100,
   boss: 5000,
-  iqBase: 60,
-  iqPerScore: 2500,
-  iqMax: 200,
+  /** 社会人力 = powerBase × 10^(スコア ÷ powerScale)。笑えるくらいインフレさせる */
+  powerBase: 5,
+  powerScale: 25000,
 } as const;

@@ -1,7 +1,7 @@
 // 起動、画面遷移、入力、毎フレームの更新と描画（仕様書 6.6 節・6.8 節・8.2 節）。
 import { Synth } from '../audio/synth.ts';
 import { AIM, B, RUSH_START } from '../core/balance.ts';
-import { estimatedIq, waveOf, weaponName } from '../core/formulas.ts';
+import { socialPower, waveOf, weaponName } from '../core/formulas.ts';
 import type { GameEvent } from '../core/state.ts';
 import { drawHud } from '../render/hud.ts';
 import { CENTER_X, H, HALF_ROAD, W } from '../render/projection.ts';
@@ -169,7 +169,7 @@ class App {
       saveHighScore(score);
     }
     const review = reviewPlay(s, this.session.blockShare, this.session.nearMisses);
-    this.result = { score, highScore: this.highScore, newRecord, wave: waveOf(s.t), weapon: weaponName(s.player.rank), iq: estimatedIq(score), review };
+    this.result = { score, highScore: this.highScore, newRecord, wave: waveOf(s.t), weapon: weaponName(s.player.rank), power: socialPower(score), review };
     this.resultAt = this.time;
     if (newRecord) this.synth.newRecord();
     this.mode = 'result';

@@ -89,7 +89,7 @@ export function fireRate(rank: number): number {
   return Math.min(FIRE_RATE.max, FIRE_RATE.base + rank * FIRE_RATE.perRank);
 }
 
-/** リザルトの推定 IQ */
-export function estimatedIq(score: number): number {
-  return Math.min(SCORE.iqMax, SCORE.iqBase + Math.floor(score / SCORE.iqPerScore));
+/** リザルトの社会人力（スコアから出す、意味のない大きな数字。小数点以下は切り捨て） */
+export function socialPower(score: number): number {
+  return Math.floor(SCORE.powerBase * 10 ** (Math.max(0, score) / SCORE.powerScale));
 }

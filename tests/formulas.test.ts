@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import golden from '../reference/golden.json';
-import { baseHp, bossHp, bossName, dRef, dpsOf, estimatedIq, fireRate, phi, sizeRate, waveOf, weaponName, weaponStage } from '../src/core/formulas.ts';
+import { baseHp, bossHp, bossName, dRef, dpsOf, fireRate, phi, sizeRate, socialPower, waveOf, weaponName, weaponStage } from '../src/core/formulas.ts';
 
 /** 相対誤差 1e-9 以内 */
 function close(actual: number, expected: number): void {
@@ -60,10 +60,11 @@ describe('武器と表示', () => {
     expect(bossName(8)).toBe('真・親戚の集まり');
   });
 
-  it('推定 IQ は 60 + スコア ÷ 2,500 の切り捨てで、上限 200', () => {
-    expect(estimatedIq(0)).toBe(60);
-    expect(estimatedIq(5760)).toBe(62);
-    expect(estimatedIq(151365)).toBe(120);
-    expect(estimatedIq(1e9)).toBe(200);
+  it('社会人力は 5 × 10^(スコア ÷ 25,000) の切り捨てで、スコアとともに桁が増えていく', () => {
+    expect(socialPower(0)).toBe(5);
+    expect(socialPower(25000)).toBe(50);
+    expect(socialPower(12500)).toBe(15);
+    expect(socialPower(125000)).toBe(500000);
+    expect(socialPower(250000)).toBeGreaterThan(socialPower(125000) * 10000);
   });
 });
