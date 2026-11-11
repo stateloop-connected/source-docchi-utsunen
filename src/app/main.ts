@@ -468,6 +468,8 @@ ${location.origin}${location.pathname}`;
     this.canvas.style.height = `${cssH}px`;
     document.body.classList.toggle('finger', finger);
     document.body.style.setProperty('--finger-area', `${Math.max(0, vh - cssH)}px`);
+    // 指を置く場所の幅は、キャンバスの幅に合わせる（キャンバスを縮めた端末で、足場だけが左右にはみ出さないように）
+    document.body.style.setProperty('--game-width', `${cssW}px`);
     const ratio = Math.min(window.devicePixelRatio || 1, MAX_PIXEL_RATIO);
     this.canvas.width = Math.round(cssW * ratio);
     this.canvas.height = Math.round(cssH * ratio);

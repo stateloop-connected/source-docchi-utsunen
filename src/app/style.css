@@ -71,8 +71,8 @@ body.finger {
 body.finger::before {
   content: '';
   position: fixed;
-  left: 0;
-  right: 0;
+  left: calc(50% - var(--game-width, 100%) / 2);
+  width: var(--game-width, 100%);
   bottom: 0;
   height: var(--finger-area, 0px);
   background:
@@ -85,8 +85,8 @@ body.finger::before {
 body.finger::after {
   content: '◀　ここをなぞって動かす　▶';
   position: fixed;
-  left: 7%;
-  right: 7%;
+  left: calc(50% - var(--game-width, 100%) * 0.43);
+  width: calc(var(--game-width, 100%) * 0.86);
   bottom: calc((var(--finger-area, 0px) - 40px) / 2);
   height: 40px;
   border-radius: 20px;
