@@ -1,22 +1,48 @@
 # どっち撃つねん
 
-SNS の広告動画でよく見る「敵の大群と強化アイテムが同時に流れてくるシューティング」を、ちゃんと遊べるブラウザゲームにしたもの。
+SNS の広告動画でよく見る「敵の大群と強化アイテムが同時に流れてくるシューティング」を、ちゃんと遊べるブラウザゲームにしたものです。
 
-現在はルールの芯とバランス検証までできています。画面はこれから作ります。
+道は左右 2 レーン。左から「現代人のストレス」（未読通知、迷惑メール、締切、リボ払い）が押し寄せ、右を強化ブロックが流れていきます。撃てるのは、立っているレーンの先頭だけ。敵を撃てば安全、強化を撃てば将来が楽になります。水鉄砲から始めて、どこまで行けるでしょうか。
 
-## 文書
+## 遊び方
 
-- 実装を進める人（Claude Code）は `CLAUDE.md` と `docs/START_HERE.md` から読んでください
-- 企画は `docs/proposal.md`、仕様は `docs/spec.md`
-- 実装の今の姿は `docs/implementation.md`、経緯と決定事項は `docs/decisions.md`
+| 環境 | 操作 |
+| --- | --- |
+| スマホ | 画面の左半分をタップで敵レーン、右半分で強化レーン |
+| PC | ← → または A D キー。スペースで反対側へ。クリックも可。Esc か P で一時停止 |
+
+- 射撃は自動です。レーンの移動には 0.15 秒かかり、その間は撃てません。
+- 敵レーンが埋まる（埋まり度 100%）とゲームオーバーです。
+- 強化ブロックは、通り過ぎる前に壊し切ると効果が出ます。先頭のブロックの数字が白なら、今から撃ち続ければ間に合います。赤なら間に合いません。
+- 20 秒ごとにラッシュが来ます。5 ウェーブごとにボスが出ます。
+- 残るのはハイスコアだけです。永続強化はありません。
 
 ## 開発
 
 Docker で動かします（Node や Python はホストに入れません）。
 
 ```sh
-docker compose run --rm test        # 単体テスト
-docker compose run --rm sim         # バランス検証（最後に「総合: 合格」と出れば成功）
-docker compose run --rm check       # 型検査
-docker compose run --rm reference   # Python の参照シミュレータ（数分〜十数分かかる）
+docker compose up                                 # 開発サーバー → http://localhost:5173/
+docker compose run --rm test                      # 単体テスト
+docker compose run --rm sim                       # バランス検証（最後に「総合: 合格」と出れば成功）
+docker compose run --rm check                     # 型検査
+docker compose run --rm build                     # dist/ に静的ファイルを出力
+docker compose run --rm --service-ports preview   # dist/ を配信 → http://localhost:4173/
+docker compose run --rm reference                 # Python の参照シミュレータ（数分〜十数分かかる）
 ```
+
+`dist/` の中身は、そのまま静的ファイルとして配信できます（サブパスに置いても動きます）。
+
+## 文書
+
+| 文書 | 中身 |
+| --- | --- |
+| `CLAUDE.md` | 実装を進める AI（Claude Code）が毎回守る規則、チェックリスト、サプライチェーン対策 |
+| `docs/START_HERE.md` | 最初の依頼文。段階の進め方 |
+| `docs/proposal.md` | 企画書 |
+| `docs/spec.md` | 仕様書（実装の正） |
+| `docs/implementation.md` | 実装の今の姿。構成、見た目・音・文言で実装時に決めたこと、確認のしかた |
+| `docs/decisions.md` | 経緯と決定事項、進み具合、未決事項 |
+| `reference/` | バランスの参照シミュレータ（Python）と、単体テスト用の期待値 |
+
+画像・音声・フォントの素材ファイルは持たず、絵も音もすべてコードで作っています。実行時の依存ライブラリもありません。
