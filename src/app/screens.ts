@@ -2,6 +2,7 @@
 import { INK, clamp, fancyText, fillRoundRect, gradV, roundRect, text, type Ctx } from '../render/draw.ts';
 import { formatComma } from '../render/format.ts';
 import { H, HORIZON_Y, W } from '../render/projection.ts';
+import { hash } from '../render/world.ts';
 import type { Review } from './review.ts';
 import { CONTINUE_COST, GEM } from './shop.ts';
 import type { Button } from './ui.ts';
@@ -238,6 +239,22 @@ export function drawResult(ctx: Ctx, r: ResultStats, message: string | null, age
 
   text(ctx, `所持ジェム ${GEM}${formatComma(gems)}`, W / 2, 922, { size: 14, weight: 800, color: '#cfe6ff' });
   if (message) fancyText(ctx, message, W / 2, 944, { size: 18, top: '#fff7a8', bottom: '#ffd23f', maxWidth: 500, shadow: 0, strokeWidth: 4 });
+
+  // ハイスコアを更新したら、紙吹雪を降らせる
+  if (r.newRecord) {
+    const colors = ['#ffd23f', '#ff5c8a', '#4fd26b', '#5ad1ff', '#ffffff'];
+    for (let i = 0; i < 60; i++) {
+      const fall = ((hash(i) * H + age * (140 + hash(i + 60) * 160)) % (H + 40)) - 20;
+      const x = hash(i + 120) * W + Math.sin(age * 2 + i) * 18;
+      ctx.save();
+      ctx.translate(x, fall);
+      ctx.rotate(age * (2 + hash(i + 180) * 4) + i);
+      ctx.fillStyle = colors[i % colors.length]!;
+      ctx.fillRect(-5, -3, 10, 6);
+      ctx.restore();
+    }
+  }
+// ハイスコアを更新したら、紙吹雪を降らせる  if (r.newRecord) {    const colors = ['#ffd23f', '#ff5c8a', '#4fd26b', '#5ad1ff', '#ffffff'];    for (let i = 0; i < 60; i++) {      const fall = (hash(i) * H + age * (140 + hash(i + 60) * 160)) % (H + 40) - 20;      const x = hash(i + 120) * W + Math.sin(age * 2 + i) * 18;      ctx.save();      ctx.translate(x, fall);      ctx.rotate(age * (2 + hash(i + 180) * 4) + i);      ctx.fillStyle = colors[i % colors.length]!;      ctx.fillRect(-5, -3, 10, 6);      ctx.restore();    }  }
 }
 
 /** 「結果をコピー」でクリップボードに入れる文字列（仕様書 2.6 節） */

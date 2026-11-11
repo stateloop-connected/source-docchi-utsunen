@@ -24,6 +24,8 @@ const SIDE_INNER = AIM.border + 0.03;
 const MUZZLE_STAGES = new Set([3, 4, 5, 6, 7, 8]);
 /** 埋まり度がこの割合以上で、画面の縁を赤くし、防衛線の警告灯を回す */
 const DANGER_RATIO = 0.7;
+/** 埋まり度がこの割合を超えたら、撃てるボムに「今だ！」と目印を付ける */
+const BOMB_HINT_RATIO = 0.5;
 
 /** 時間帯ごとの遠景（空、街並み、海）と、その上に重ねる橋 */
 let worlds: HTMLCanvasElement[] = [];
@@ -390,6 +392,11 @@ function drawBlocks(ctx: Ctx, s: GameState, v: View): void {
     if (danger) {
       ctx.fillStyle = `rgba(255,40,40,${0.25 + 0.2 * Math.sin(v.time * 30)})`;
       ctx.fillRect(cx - 75 * k, bottom - (110 - BLOCK_TOP) * k, 150 * k, (110 - BLOCK_TOP) * k);
+    }
+    // 敵が溜まってきたら、撃てるボムを目立たせる（逆転の手がかり）
+    if (b.kind === 'bomb' && front && !s.over && s.fill / s.capacity > BOMB_HINT_RATIO) {
+      const bounce = Math.abs(Math.sin(v.time * 7)) * 10 * k;
+      fancyText(ctx, '▼ 今だ！', cx, bottom - 128 * k - bounce, { size: Math.max(13, 30 * k), top: '#fff7a8', bottom: '#ff9d1a', stroke: '#5a0000' });
     }
     // 残り HP の数字。撃てるブロックは、間に合うなら白、間に合わないなら赤。後ろのブロックは灰色
     const color = front ? (canBreakInTime(s, b) ? '#ffffff' : '#ff5c5c') : '#c9ced8';
