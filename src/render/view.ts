@@ -1,7 +1,7 @@
 // 見た目だけの状態（敵の位置、弾、ダメージの数字、破片、演出のタイマー）。
 // ロジックの状態を読むだけで、ロジックには影響を与えない（仕様書 6 章・7 章）。
-import { AIM, B, type BlockKind, type EnemyKind, type Lane } from '../core/balance.ts';
-import { bossName, dpsOf, fireRate, waveOf, weaponName, weaponStage } from '../core/formulas.ts';
+import { AIM, B, ENEMIES, VACATION_OVER, type BlockKind, type EnemyKind, type Lane } from '../core/balance.ts';
+import { bossLines, bossName, dpsOf, fireRate, rushLine, waveOf, weaponName, weaponStage } from '../core/formulas.ts';
 import { mulberry32 } from '../core/rng.ts';
 import { isCritical, sideOf, weakPointOf, type Enemy, type GameEvent, type GameState } from '../core/state.ts';
 import { clamp } from './draw.ts';
@@ -57,7 +57,7 @@ export const LOOK = {
   shakeMax: 6,
   bossShakeTime: 0.3,
   warningTime: 2,
-  bossIntroTime: 1.6,
+  bossIntroTime: 2,
   bombWaveTime: 0.45,
   /** プレイヤーの足元の y */
   playerBottom: 904,
@@ -75,6 +75,11 @@ export const LOOK = {
   mowWindow: 0.6,
   mowKills: 6,
   mowCooldown: 2.5,
+  /** 初めて出た種類の敵を紹介する札と、その敵の頭上に名前を出す時間 */
+  introTime: 3.6,
+  /** 敵を倒したときのひとこと（「既読」など）を、次に出すまであける秒数。うるさくならないよう、数の多い敵（未読通知、迷惑メール）は長くあける */
+  defeatWordGap: 1.5,
+  defeatWordGapCommon: 6,
   /** 会心を snipeTime 秒続けると「狙い撃ち！」。snipeGap 秒までの途切れは続きとみなす。次に出すまで snipeCooldown 秒あける */
   snipeTime: 2,
   snipeGap: 0.2,
@@ -224,6 +229,9 @@ interface BlockSpot {
   left: number;
 }
 
+/** 2 台目の相棒（AI）が来たときの言葉 */
+const AI_BUDDY_LABEL = 'AI 相棒 参上！';
+const AI_BUDDY_LINE = '「お手伝いできることはありますか？」';
 const EFFECT_LABEL: Readonly<Record<BlockKind, string>> = {
   rank: 'ランクアップ！',
   gold: 'ランク +2！！',
@@ -283,7 +291,7 @@ export class View {
   /** 一斉削除の白い帯が走り始めた時刻。なければ負 */
   bombWaveAt = -1;
   warning: { boss: boolean; name: string; until: number } | null = null;
-  bossIntro: { name: string; start: number } | null = null;
+  bossIntro: { name: string; line: string; start: number } | null = null;
   /** ゲームオーバーになった時刻。なければ負 */
   overAt = -1;
   /** ブロック・敵に最後に弾が当たった時刻 */
@@ -311,6 +319,11 @@ export class View {
   /** 直近に敵を倒した時刻（なぎ倒しの判定用） */
   private killTimes: number[] = [];
   private lastMowAt = -10;
+  private lastDefeatWordAt = -10;
+  /** この回で取った相棒の数（2 台目は AI なので、出す言葉を変える） */
+  private buddiesGot = 0;
+  /** 前のフレームで、有給休暇の効果中だったか（切れた瞬間を知るため） */
+  private onVacation = false;
   /** 会心が続き始めた時刻（続いていなければ負の値）と、最後に会心だった時刻。「狙い撃ち！」の判定用 */
   private critSince = -1;
   private lastCritAt = -10;
@@ -318,6 +331,10 @@ export class View {
   private lastWave = 1;
   /** この回で、まだ会心を出していない（初めての会心で、ひとこと説明する） */
   private noCritYet = true;
+  /** この回で、もう出てきた敵の種類 */
+  private readonly seenKinds = new Set<EnemyKind>();
+  /** 初めて出た種類の敵の紹介（何と戦っているのかを伝える）。出していなければ null */
+  enemyIntro: { kind: EnemyKind; start: number } | null = null;
   /** 遊び方のひとこと（会心の説明）を出すか。デモでは出さない（タイトルの文字と重なるため） */
   tips = true;
   /** 画面の揺れと、画面全体が光る演出を止めるか（OS の「視差効果を減らす」に従う） */
@@ -342,6 +359,7 @@ export class View {
     this.updateShooting(dt, s);
     this.updateBullets(dt);
     this.updateRecovery(s);
+    this.updateVacation(s);
     this.updateWave(s);
     if (s.score > this.lastScore) this.scoreAt = this.time;
     this.lastScore = s.score;
@@ -543,6 +561,24 @@ export class View {
     this.sfx?.praise();
   }
 
+  /** 敵を倒したら、ときどき小さくひとこと出す（社会人あるあるの小ネタ。数の多い敵は間引く） */
+  private defeatWord(kind: EnemyKind | 'boss', x: number, y: number): void {
+    if (kind === 'boss') return;
+    const gap = kind === 'notice' || kind === 'spam' ? LOOK.defeatWordGapCommon : LOOK.defeatWordGap;
+    if (this.time - this.lastDefeatWordAt < gap) return;
+    this.lastDefeatWordAt = this.time;
+    const word = ENEMIES.find((d) => d.id === kind)!.defeat;
+    // ダメージの数字と重ならないよう、少し右にずらす
+    this.toast('defeat', word, clamp(x + 34, 60, W - 60), y - 14, 19, TONE.white, 0.7);
+  }
+
+  /** 有給休暇の効果が切れたら、ひとこと出す */
+  private updateVacation(s: GameState): void {
+    const now = s.t < s.vacationUntil;
+    if (this.onVacation && !now && !s.over) this.toast('aside', VACATION_OVER, W / 2, 398, 26, TONE.white, 1.1);
+    this.onVacation = now;
+  }
+
   /** 危機から立て直したら、ひとこと褒める */
   private updateRecovery(s: GameState): void {
     const ratio = s.fill / s.capacity;
@@ -670,6 +706,7 @@ export class View {
               this.ring(v.x, cy, h * 0.9 + 6, '#ffffff');
               this.sfx?.kill();
               this.countKill();
+              this.defeatWord(e.kind, v.x, cy - h / 2);
             }
           }
           break;
@@ -682,7 +719,10 @@ export class View {
             this.burst(f.x, f.y, 8, '#ffffff', 200 * f.k + 40, 0.4, 6 * f.k + 2);
             this.ring(f.x, f.y, 150 * f.k + 20, BLOCK_COLORS[e.kind]);
           }
-          this.toast('effect', EFFECT_LABEL[e.kind], W / 2, 352, e.kind === 'trap' ? 46 : 38, EFFECT_TONE[e.kind], 0.9);
+          // 2 台目の相棒は AI（scene.ts の AI_BUDDY と対応）
+          if (e.kind === 'buddy') this.buddiesGot++;
+          this.toast('effect', e.kind === 'buddy' && this.buddiesGot === 2 ? AI_BUDDY_LABEL : EFFECT_LABEL[e.kind], W / 2, 352, e.kind === 'trap' ? 46 : 38, EFFECT_TONE[e.kind], 0.9);
+          if (e.kind === 'buddy' && this.buddiesGot === 2) this.toast('aside', AI_BUDDY_LINE, W / 2, 398, 22, TONE.white, 1.8);
           this.sfx?.blockBreak();
           if (e.kind === 'trap') {
             if (f) this.burst(f.x, f.y, 14, 'rgba(220,40,40,0.8)', 120, 0.9, 16, -60);
@@ -725,7 +765,7 @@ export class View {
           break;
         }
         case 'rushWarning':
-          this.warning = { boss: false, name: '', until: this.time + LOOK.warningTime };
+          this.warning = { boss: false, name: rushLine(e.wave), until: this.time + LOOK.warningTime };
           this.sfx?.rushWarning();
           break;
         case 'bossWarning':
@@ -733,12 +773,13 @@ export class View {
           this.sfx?.bossWarning();
           break;
         case 'bossSpawn':
-          this.bossIntro = { name: bossName(e.index), start: this.time };
+          this.bossIntro = { name: bossName(e.index), line: bossLines(e.index).intro, start: this.time };
           this.shakeLeft = LOOK.bossShakeTime;
           this.sfx?.bossSpawn();
           break;
         case 'bossKill':
           this.toast('effect', `${bossName(e.index)} 撃破！`, W / 2, 352, 40, TONE.gold, 1.4);
+          this.toast('aside', bossLines(e.index).defeat, W / 2, 398, 22, TONE.white, 1.8);
           this.sfx?.bossKill();
           break;
         case 'gameOver':
@@ -746,6 +787,11 @@ export class View {
           this.sfx?.gameOver();
           break;
         case 'enemySpawn':
+          if (this.tips && !this.seenKinds.has(e.kind)) {
+            this.seenKinds.add(e.kind);
+            this.enemyIntro = { kind: e.kind, start: this.time };
+          }
+          break;
         case 'blockSpawn':
           break;
       }

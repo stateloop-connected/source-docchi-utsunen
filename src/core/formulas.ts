@@ -1,5 +1,5 @@
 // 仕様書 3.2 節の数式。計算の順序は参照シミュレータに合わせてある（浮動小数点の結果を揃えるため）。
-import { B, BOSS_NAMES, BOSS_PREFIX, ENEMIES, FIRE_RATE, SCORE, WEAPONS, WEAPON_STEP } from './balance.ts';
+import { B, BOSS_LINES, BOSS_NAMES, BOSS_PREFIX, ENEMIES, RUSH_LINES, FIRE_RATE, SCORE, WEAPONS, WEAPON_STEP } from './balance.ts';
 
 /** プレイヤーの DPS */
 export function dpsOf(rank: number): number {
@@ -59,6 +59,16 @@ export function bossName(index: number): string {
   const i = Math.max(0, index - 1);
   const name = BOSS_NAMES[i % BOSS_NAMES.length]!;
   return i >= BOSS_NAMES.length ? BOSS_PREFIX + name : name;
+}
+
+/** ボスが出たときと、倒したときのひとこと。index は出現順（1 始まり） */
+export function bossLines(index: number): { intro: string; defeat: string } {
+  return BOSS_LINES[Math.max(0, index - 1) % BOSS_LINES.length]!;
+}
+
+/** そのウェーブのラッシュの警告に添えるひとこと */
+export function rushLine(wave: number): string {
+  return RUSH_LINES[Math.max(0, wave - 1) % RUSH_LINES.length]!;
 }
 
 /** 武器の段階（0〜15） */

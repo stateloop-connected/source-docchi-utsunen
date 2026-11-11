@@ -1,5 +1,5 @@
 // 背景・道・敵・ブロック・プレイヤー・弾・エフェクトの描画（仕様書 6 章）。状態を読むだけで書き換えない。
-import { AIM, B, RUSH_START } from '../core/balance.ts';
+import { AIM, B, ENEMIES, RUSH_START } from '../core/balance.ts';
 import { bossName, dpsOf, waveOf, weaponStage } from '../core/formulas.ts';
 import { weakPointOf, type Block, type GameState } from '../core/state.ts';
 import { INK, circle, clamp, ellipse, fancyText, fillRoundRect, gradV, lerp, poly, text, type Ctx } from './draw.ts';
@@ -16,6 +16,8 @@ const BLOCK_DANGER = 0.15;
 /** 相棒を置く横位置（u）。3 台目は真ん中 */
 const BUDDY_U = [-0.36, 0.36, 0] as const;
 const BUDDY_BOTTOM = 884;
+/** 何台目の相棒を AI にするか（0 始まり）。見た目だけの違いで、強さは同じ */
+const AI_BUDDY = 1;
 /** 橋の縁（道の外側の壁）の外端。u の値 */
 const WALL = 1.1;
 /** 強化の帯の内側の端（敵の帯との境の少し外） */
@@ -417,7 +419,7 @@ function drawBuddies(ctx: Ctx, s: GameState, v: View): void {
     const x = xOf(BUDDY_U[i]!, 0) + Math.sin(v.time * 3 + i * 2.1) * 3;
     if (front) {
       ctx.globalCompositeOperation = 'lighter';
-      ctx.strokeStyle = `rgba(105,240,138,${0.35 + 0.3 * Math.sin(v.time * 40 + i * 2)})`;
+      ctx.strokeStyle = `rgba(${i === AI_BUDDY ? '125,240,255' : '105,240,138'},${0.35 + 0.3 * Math.sin(v.time * 40 + i * 2)})`;
       ctx.lineWidth = 2.5;
       ctx.beginPath();
       ctx.moveTo(x, BUDDY_BOTTOM - 20);
@@ -425,7 +427,9 @@ function drawBuddies(ctx: Ctx, s: GameState, v: View): void {
       ctx.stroke();
       ctx.globalCompositeOperation = 'source-over';
     }
-    drawSprite(ctx, 'buddy', x, BUDDY_BOTTOM);
+    // AI の相棒は、ふわふわ浮かせる
+    if (i === AI_BUDDY) drawSprite(ctx, 'buddy.ai', x, BUDDY_BOTTOM + 4 + Math.sin(v.time * 2.4) * 3, 1.3);
+    else drawSprite(ctx, 'buddy', x, BUDDY_BOTTOM);
   }
 }
 
@@ -685,6 +689,7 @@ export function drawScene(ctx: Ctx, s: GameState, v: View): void {
   drawAimColumn(ctx, s, v);
   drawBlocks(ctx, s, v);
   drawEnemies(ctx, s, v);
+  drawEnemyNameTag(ctx, s, v);
   drawWeakPoints(ctx, s, v);
   drawBarricade(ctx, v.time, danger);
   drawBuddies(ctx, s, v);
@@ -793,4 +798,22 @@ function drawWeakPoints(ctx: Ctx, s: GameState, v: View): void {
   const target = s.enemies.find((e) => e.id === v.aim.enemyId);
   if (!target || target.kind === 'boss') return;
   drawTarget(ctx, v.aim.weakX, v.aim.y, 13 * v.aim.k + 3, v.aim.crit, v.time);
+}
+
+/** 初めて出た種類の敵は、紹介の札が出ているあいだ、いちばん手前の 1 体の頭上に名前を出す（札の絵と実物を結びつける） */
+function drawEnemyNameTag(ctx: Ctx, s: GameState, v: View): void {
+  const intro = v.enemyIntro;
+  if (!intro || s.over) return;
+  const age = v.time - intro.start;
+  if (age >= LOOK.introTime) return;
+  const e = s.enemies.find((o) => o.kind === intro.kind);
+  const vis = e && v.enemies.get(e.id);
+  if (!vis) return;
+  const name = ENEMIES.find((d) => d.id === intro.kind)!.name;
+  const top = vis.y - sprite(vis.spriteId).h * vis.scale;
+  const y = top - 20 - Math.abs(Math.sin(v.time * 6)) * 4;
+  ctx.globalAlpha = clamp((LOOK.introTime - age) / 0.3, 0, 1);
+  fancyText(ctx, name, vis.x, y, { size: 17, top: '#ffffff', bottom: '#ffe27a', strokeWidth: 4, shadow: 1 });
+  poly(ctx, [vis.x - 6, y + 11, vis.x + 6, y + 11, vis.x, y + 18], INK);
+  ctx.globalAlpha = 1;
 }

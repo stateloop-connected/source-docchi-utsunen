@@ -21,8 +21,15 @@ const PAD = 5;
 /** 輪郭の太さ */
 const OUTLINE = 2.4;
 
-/** 未読通知のバッジの数字。見た目を散らすための変種 */
-export const NOTICE_VARIANTS = ['1', '3', '7', '12', '48', '99'] as const;
+/** 未読通知の変種（アプリの絵柄と、バッジの数字）。見た目を散らすために使い回す */
+export const NOTICE_VARIANTS = [
+  ['chat', '1'],
+  ['work', '3'],
+  ['mail', '7'],
+  ['chat', '12'],
+  ['work', '48'],
+  ['mail', '99'],
+] as const;
 export const HAT_COLORS = ['#ff7eb6', '#ffd23f', '#5ad1ff', '#8be36b'] as const;
 
 export const BLOCK_COLORS: Readonly<Record<BlockKind, string>> = {
@@ -155,16 +162,101 @@ function angryEyes(c: Ctx, cx: number, y: number, gap: number, r: number): void 
 
 // ---------------------------------------------------------------- 敵
 
-function drawNotice(c: Ctx, label: string): void {
-  ellipse(c, 15, 45, 6.5, 3.5, '#9c130c');
-  ellipse(c, 33, 45, 6.5, 3.5, '#9c130c');
-  c.beginPath();
-  c.arc(24, 23, 20, 0, Math.PI * 2);
-  c.fillStyle = radial(c, 17, 13, 26, [[0, '#ffa093'], [0.45, '#f6392d'], [1, '#ad150d']]);
+/**
+ * 未読通知の、アプリの絵柄（台の上の色、下の色、足の色）。
+ * 「よくあるアプリ」に見えればよく、実在のアプリのアイコンには似せない（色と形を、どれとも変えてある）。
+ */
+const NOTICE_APPS = {
+  chat: ['#ffa48f', '#ee4f6c', '#8f1f3a'],
+  work: ['#ffffff', '#e6e8f2', '#1d6b63'],
+  mail: ['#9a8cff', '#4f43c4', '#2a2278'],
+} as const;
+
+/** 未読通知。アプリのアイコンの角に、未読の件数を書いた赤いバッジが付いている。顔はアプリごとに変える */
+function drawNotice(c: Ctx, app: keyof typeof NOTICE_APPS, label: string): void {
+  const [top, bottom, feet] = NOTICE_APPS[app];
+  ellipse(c, 13, 46.5, 6, 3, feet);
+  ellipse(c, 31, 46.5, 6, 3, feet);
+  // アイコンの台
+  roundRect(c, 3, 8, 38, 37, 10);
+  c.fillStyle = gradV(c, 8, 45, top, bottom);
   c.fill();
-  ellipse(c, 16, 9.5, 8, 3.6, 'rgba(255,255,255,0.5)');
-  angryEyes(c, 24, 17, 7.2, 4.6);
-  text(c, label, 24, 32.5, { size: label.length > 1 ? 14 : 16, weight: 900, stroke: '#7a0d08', strokeWidth: 3 });
+  c.lineCap = 'round';
+  c.lineJoin = 'round';
+  if (app === 'chat') {
+    // チャット: 吹き出しに、まろ眉のむっとした顔
+    ellipse(c, 15, 13, 9, 3, 'rgba(255,255,255,0.28)');
+    ellipse(c, 22, 26, 14, 11, '#ffffff');
+    poly(c, [12, 31, 9, 41, 20, 35], '#ffffff');
+    // まろ眉（短くて丸い眉）に、むっとした口
+    for (const dir of [-1, 1]) {
+      const x = 22 + dir * 6.2;
+      ellipse(c, x, 20.6, 2.5, 1.8, INK);
+      circle(c, x, 27.2, 2.7, INK);
+      circle(c, x - 0.9, 26.2, 0.9, '#ffffff');
+    }
+    c.strokeStyle = INK;
+    c.lineWidth = 1.8;
+    c.beginPath();
+    c.moveTo(18.5, 33.6);
+    c.quadraticCurveTo(22, 31, 25.5, 33.6);
+    c.stroke();
+  } else if (app === 'work') {
+    // 仕事のチャット: 白い台を斜めに 2 色で塗り分け、気の抜けた顔を付ける（怒った顔ばかりだと単調なので、これだけ変顔）
+    c.save();
+    roundRect(c, 3, 8, 38, 37, 10);
+    c.clip();
+    poly(c, [3, 8, 30, 8, 3, 34], '#19b5a5');
+    poly(c, [41, 45, 14, 45, 41, 19], '#ff9a2e');
+    ellipse(c, 22, 27, 14.5, 13, '#ffffff');
+    c.restore();
+    // 左右で大きさの違う目と、ゆがんだ口、ちょろっと出た舌
+    circle(c, 16, 24.5, 3, INK);
+    circle(c, 15, 23.4, 1, '#ffffff');
+    circle(c, 28.5, 23.5, 2.1, INK);
+    circle(c, 27.8, 22.8, 0.7, '#ffffff');
+    c.strokeStyle = INK;
+    c.lineWidth = 2;
+    c.beginPath();
+    c.moveTo(15.5, 31);
+    c.quadraticCurveTo(22, 37.5, 29.5, 30);
+    c.stroke();
+    ellipse(c, 24.5, 35.2, 2.6, 2.2, '#ff7a9c');
+  } else {
+    // メール: 封筒に、じと目（ふたの線と重ならないよう、眉は描かない）
+    ellipse(c, 15, 13, 9, 3, 'rgba(255,255,255,0.28)');
+    fillRoundRect(c, 8, 17, 28, 22, 3.5, '#ffffff');
+    c.strokeStyle = bottom;
+    c.lineWidth = 2;
+    c.beginPath();
+    c.moveTo(9.5, 19);
+    c.lineTo(22, 26.5);
+    c.lineTo(34.5, 19);
+    c.stroke();
+    for (const x of [15.5, 28.5]) {
+      // 上半分をまぶたで切った、半開きの目
+      c.fillStyle = INK;
+      c.beginPath();
+      c.arc(x, 30.5, 3.1, 0, Math.PI);
+      c.fill();
+      c.strokeStyle = INK;
+      c.lineWidth = 1.8;
+      c.beginPath();
+      c.moveTo(x - 4.2, 30.5);
+      c.lineTo(x + 4.2, 30.5);
+      c.stroke();
+    }
+    c.lineWidth = 1.6;
+    c.beginPath();
+    c.moveTo(19.5, 36);
+    c.lineTo(24.5, 36);
+    c.stroke();
+  }
+  // 未読の件数のバッジ（台の色に埋もれないよう、白い縁を付ける）
+  circle(c, 37.5, 10.5, 10.6, '#ffffff');
+  circle(c, 37.5, 10.5, 9.2, '#ff3b30');
+  ellipse(c, 35.2, 6.6, 4, 2, 'rgba(255,255,255,0.45)');
+  text(c, label, 37.5, 11.3, { size: label.length > 1 ? 11 : 13.5, weight: 900, stroke: '#8a0f08', strokeWidth: 2.5 });
 }
 
 function drawSpam(c: Ctx): void {
@@ -501,6 +593,39 @@ function drawHat(c: Ctx, color: string): void {
   c.fillRect(7, 9, 24, 3);
 }
 
+/** AI の相棒。宙に浮く白い球に、暗い画面の顔。頭の上に、AI の目印のきらめき（実在のサービスのロゴには似せない） */
+function drawBuddyAi(c: Ctx): void {
+  // 浮いているので、下に光の輪
+  ellipse(c, 27, 44, 15, 4, 'rgba(120,200,255,0.55)');
+  ellipse(c, 27, 44, 9, 2.2, 'rgba(255,255,255,0.8)');
+  // 本体
+  c.beginPath();
+  c.arc(27, 25, 16, 0, Math.PI * 2);
+  c.fillStyle = radial(c, 21, 17, 22, [[0, '#ffffff'], [0.6, '#e4ecff'], [1, '#aab8e0']]);
+  c.fill();
+  // 顔の画面
+  fillRoundRect(c, 15, 18, 24, 14, 7, '#1b2140');
+  c.strokeStyle = '#7df0ff';
+  c.lineWidth = 2;
+  c.lineCap = 'round';
+  for (const x of [21.5, 32.5]) {
+    c.beginPath();
+    c.arc(x, 26.5, 2.8, Math.PI * 1.15, Math.PI * 1.85);
+    c.stroke();
+  }
+  // きらめき（大小 2 つの 4 角の星）
+  for (const [x, y, r, color] of [[42, 9, 7, '#ffb347'], [50, 19, 3.6, '#ff7ad9']] as const) {
+    c.fillStyle = color;
+    c.beginPath();
+    c.moveTo(x, y - r);
+    c.quadraticCurveTo(x, y, x + r, y);
+    c.quadraticCurveTo(x, y, x, y + r);
+    c.quadraticCurveTo(x, y, x - r, y);
+    c.quadraticCurveTo(x, y, x, y - r);
+    c.fill();
+  }
+}
+
 function drawBuddy(c: Ctx): void {
   ellipse(c, 27, 19, 26, 12, '#262a35');
   c.beginPath();
@@ -734,7 +859,7 @@ function drawCloud(c: Ctx, variant: number): void {
 
 /** 全スプライトを作る。起動時に 1 回だけ呼ぶ */
 export function initSprites(): void {
-  NOTICE_VARIANTS.forEach((label, i) => make(`enemy.notice.${i}`, 48, 50, (c) => drawNotice(c, label), { shadow: [24, 47, 17, 4], flash: true }));
+  NOTICE_VARIANTS.forEach(([app, label], i) => make(`enemy.notice.${i}`, 48, 50, (c) => drawNotice(c, app, label), { shadow: [24, 47, 17, 4], flash: true }));
   make('enemy.spam', 36, 30, drawSpam, { shadow: [18, 28, 15, 3], flash: true });
   make('enemy.deadline', 84, 94, drawDeadline, { shadow: [42, 91, 32, 5], flash: true });
   make('enemy.revolving', 58, 44, drawRevolving, { shadow: [29, 42, 25, 4], flash: true });
@@ -747,6 +872,7 @@ export function initSprites(): void {
   }
   make('player', 76, 94, drawPlayer, { shadow: [38, 92, 28, 5] });
   make('buddy', 54, 32, drawBuddy, { shadow: [27, 28, 26, 6] });
+  make('buddy.ai', 56, 48, drawBuddyAi);
   HAT_COLORS.forEach((color, i) => make(`hat.${i}`, 38, 18, (c) => drawHat(c, color)));
   WEAPONS.forEach((_, i) => make(`weapon.${i}`, WEAPON_SPRITE.w, WEAPON_SPRITE.h, WEAPON_DRAWERS[i]!));
   make('muzzle', 64, 64, drawMuzzle, { noOutline: true });

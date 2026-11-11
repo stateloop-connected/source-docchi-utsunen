@@ -9,7 +9,7 @@ import { CONTINUE_COST, GEM } from './shop.ts';
 import type { Button } from './ui.ts';
 
 /** 煽り文句。4 秒ごとに切り替える */
-export const TAUNTS = ['99% の人が WAVE 5 に届かない', 'IQ 120 以上ならクリア可能', '簡単そうに見えますよね？', '3 分遊ぶと止まらなくなる'] as const;
+export const TAUNTS = ['未読 999+ 件、さばけますか？', '99% の人が WAVE 5 に届かない', '月曜日が来る前に倒せ', 'IQ 120 以上ならクリア可能', '簡単そうに見えますよね？', '締切もリボ払いも撃てばいい', '3 分遊ぶと止まらなくなる'] as const;
 export const TAUNT_SECONDS = 4;
 /** 出来事に反応する字幕の表示時間 */
 export const CAPTION_SECONDS = 1.5;
@@ -199,6 +199,8 @@ export function drawResult(ctx: Ctx, r: ResultStats, message: string | null, age
   ctx.globalAlpha = clamp(age / 0.2, 0, 1);
 
   fancyText(ctx, 'GAME OVER', W / 2, 122, { size: 58, top: '#ff9a9a', bottom: '#e01010', stroke: '#ffffff', strokeWidth: 10 });
+  // 何に負けたのかを、ひとこと添える
+  text(ctx, 'ストレスに埋もれてしまった…', W / 2, 166, { size: 16, weight: 900, color: '#ffd9d9', stroke: INK, strokeWidth: 4 });
 
   // カード
   fillRoundRect(ctx, 37, 181, 466, 492, 26, INK);

@@ -89,6 +89,10 @@ export const RUSH_START = B.waveLength - B.rushLength;
 export interface EnemyDef {
   readonly id: EnemyKind;
   readonly name: string;
+  /** 初めて出たときに、名前に添えるひとこと（どんな敵か） */
+  readonly intro: string;
+  /** 倒したときに、ときどき出すひとこと */
+  readonly defeat: string;
   readonly hpMult: number;
   readonly size: number;
   readonly count: number;
@@ -100,10 +104,10 @@ export interface EnemyDef {
 
 /** 4.1 節。並び順は種類選びで使うので変えない（解禁 WAVE の昇順でもある） */
 export const ENEMIES: readonly EnemyDef[] = [
-  { id: 'notice', name: '未読通知', hpMult: 2.5, size: 2.5, count: 1, unlockWave: 1, weight: 10, halfWidth: 0.13 },
-  { id: 'spam', name: '迷惑メール', hpMult: 0.35, size: 0.5, count: 8, unlockWave: 3, weight: 2.5, halfWidth: 0.075 },
-  { id: 'deadline', name: '締切', hpMult: 10, size: 6, count: 1, unlockWave: 6, weight: 1.5, halfWidth: 0.21 },
-  { id: 'revolving', name: 'リボ払い', hpMult: 3, size: 3, count: 1, unlockWave: 9, weight: 1.5, halfWidth: 0.145 },
+  { id: 'notice', name: '未読通知', intro: '放っておくと、どんどん溜まる', defeat: '既読', hpMult: 2.5, size: 2.5, count: 1, unlockWave: 1, weight: 10, halfWidth: 0.13 },
+  { id: 'spam', name: '迷惑メール', intro: '8 通まとめて届く。まとめて倒そう', defeat: 'ゴミ箱へ', hpMult: 0.35, size: 0.5, count: 8, unlockWave: 3, weight: 2.5, halfWidth: 0.075 },
+  { id: 'deadline', name: '締切', intro: '硬いうえに、後ろの敵の盾になる', defeat: '提出！', hpMult: 10, size: 6, count: 1, unlockWave: 6, weight: 1.5, halfWidth: 0.21 },
+  { id: 'revolving', name: 'リボ払い', intro: '放っておくと、利息で育つ', defeat: '完済！', hpMult: 3, size: 3, count: 1, unlockWave: 9, weight: 1.5, halfWidth: 0.145 },
 ];
 
 /** 罠で湧く敵（未読通知） */
@@ -112,6 +116,17 @@ export const TRAP_ENEMY: EnemyDef = ENEMIES[0]!;
 /** ボスの名前。出現順に使い、一巡したら頭に BOSS_PREFIX を付けて繰り返す */
 export const BOSS_NAMES: readonly string[] = ['月曜日', '確定申告', 'スキップできない広告', '親戚の集まり'];
 export const BOSS_PREFIX = '真・';
+/** ボスが出たときと、倒したときのひとこと。BOSS_NAMES と同じ並び */
+export const BOSS_LINES: readonly { readonly intro: string; readonly defeat: string }[] = [
+  { intro: 'もう来たの…？', defeat: '…でも明日は火曜日' },
+  { intro: '領収書、どこ…？', defeat: '還付金は来月' },
+  { intro: 'あと 5 秒…', defeat: 'スキップ成功' },
+  { intro: '「最近、仕事はどうなの？」', defeat: '「また正月にね」' },
+];
+/** ラッシュの警告に添えるひとこと。ウェーブごとに順に使う */
+export const RUSH_LINES: readonly string[] = ['定時前の駆け込み', '「至急」と書いてある', '全員に返信', '月末の追い込み', '会議のあとの会議', '金曜 17 時の依頼'];
+/** 有給休暇の効果が切れたときのひとこと */
+export const VACATION_OVER = '休暇明け…';
 
 export interface BlockDef {
   readonly name: string;

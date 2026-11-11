@@ -1,12 +1,12 @@
 // プレイ中の表示類（仕様書 6.7 節）と、画面中央に出る演出の文字。
-import { AIM, B, RUSH_START } from '../core/balance.ts';
+import { AIM, B, ENEMIES, RUSH_START } from '../core/balance.ts';
 import { bossName, dpsOf, waveOf, weaponName, weaponStage } from '../core/formulas.ts';
 import type { GameState } from '../core/state.ts';
 import { INK, circle, clamp, fancyText, fillRoundRect, gradV, roundRect, text, textWidth, type Ctx } from './draw.ts';
 import { formatComma, formatNumber } from './format.ts';
 import { W, xOf, yOf } from './projection.ts';
-import { drawSpriteCentered } from './sprites.ts';
-import { LOOK, type View } from './view.ts';
+import { drawSprite, drawSpriteCentered, sprite } from './sprites.ts';
+import { LOOK, enemySpriteId, type View } from './view.ts';
 
 /** 埋まり度がこの割合以上でゲージが赤く点滅する */
 export const DANGER_RATIO = 0.7;
@@ -120,6 +120,7 @@ function drawCenterTop(ctx: Ctx, s: GameState, v: View, y: number, small: boolea
         fancyText(ctx, v.warning.name, W / 2, y + size * 0.92, { size: size * 0.62, top: '#ffffff', bottom: '#ffd0d0', stroke: '#4a0a0a', maxWidth: 440 });
       } else {
         fancyText(ctx, 'RUSH!', W / 2, y, { size: size * 1.2, top: '#ffb0b0', bottom: '#ff1f1f', stroke: '#ffffff', strokeWidth: size * 0.16 });
+        fancyText(ctx, v.warning.name, W / 2, y + size * 0.95, { size: size * 0.5, top: '#ffffff', bottom: '#ffd0d0', stroke: '#4a0a0a', maxWidth: 440 });
       }
     }
     return;
@@ -185,7 +186,10 @@ function drawBossIntro(ctx: Ctx, v: View): void {
   }
   const slide = (1 - clamp(age / 0.2, 0, 1)) * 200;
   fancyText(ctx, 'BOSS', W / 2 - slide, 422, { size: 28, top: '#fff3a0', bottom: '#ff9d1a' });
-  fancyText(ctx, v.bossIntro.name, W / 2 + slide, 494, { size: 84, top: '#ffffff', bottom: '#ffb0b0', stroke: '#b01212', strokeWidth: 10, maxWidth: 500 });
+  fancyText(ctx, v.bossIntro.name, W / 2 + slide, 484, { size: 80, top: '#ffffff', bottom: '#ffb0b0', stroke: '#b01212', strokeWidth: 10, maxWidth: 500 });
+  // ボスのひとこと。名前より少し遅れて出す
+  ctx.globalAlpha = a * clamp((age - 0.35) / 0.2, 0, 1);
+  text(ctx, v.bossIntro.line, W / 2, 546, { size: 21, weight: 900, color: '#ffe9c9', maxWidth: 480 });
   ctx.globalAlpha = 1;
 }
 
@@ -238,6 +242,38 @@ export function drawHud(ctx: Ctx, s: GameState, v: View, o: HudOptions): void {
     drawCenterTop(ctx, s, v, 150, false);
     drawGuide(ctx, s, v);
   }
+  drawEnemyIntro(ctx, v);
   drawToasts(ctx, v);
   drawBossIntro(ctx, v);
+}
+
+/**
+ * 初めて出た種類の敵を、絵・名前・ひとことで紹介する札。
+ * 何と戦っているのか（現代人のストレス）と、その敵の扱い方を、出てきたその場で伝える。
+ */
+function drawEnemyIntro(ctx: Ctx, v: View): void {
+  const intro = v.enemyIntro;
+  if (!intro) return;
+  const age = v.time - intro.start;
+  if (age >= LOOK.introTime) return;
+  const def = ENEMIES.find((d) => d.id === intro.kind)!;
+  // 右から滑り込んで、終わりに薄れる
+  const slide = (1 - clamp(age / 0.18, 0, 1)) ** 2 * 80;
+  ctx.globalAlpha = clamp((LOOK.introTime - age) / 0.3, 0, 1) * clamp(age / 0.12, 0, 1);
+  ctx.save();
+  ctx.translate(slide, 0);
+  fillRoundRect(ctx, 75, 177, 390, 62, 16, INK);
+  fillRoundRect(ctx, 78, 180, 384, 56, 13, 'rgba(24,30,58,0.94)');
+  // 絵は、札の左の丸い窓に収まる大きさで出す
+  circle(ctx, 112, 208, 24, 'rgba(255,255,255,0.14)');
+  const id = enemySpriteId(intro.kind, 0, 0);
+  const sp = sprite(id);
+  const scale = Math.min(40 / sp.w, 40 / sp.h);
+  drawSprite(ctx, id, 112, 208 + (sp.h * scale) / 2, scale);
+  fillRoundRect(ctx, 146, 186, 40, 18, 9, '#ffd23f');
+  text(ctx, 'NEW', 166, 195.5, { size: 12, weight: 900, color: INK });
+  fancyText(ctx, def.name, 194, 196, { size: 21, top: '#ffffff', bottom: '#ffe27a', align: 'left', shadow: 0, strokeWidth: 4, maxWidth: 256 });
+  text(ctx, def.intro, 146, 222, { size: 15, weight: 800, align: 'left', color: '#dbe6ff', maxWidth: 304 });
+  ctx.restore();
+  ctx.globalAlpha = 1;
 }
