@@ -15,6 +15,8 @@ export const TAUNT_SECONDS = 4;
 export const CAPTION_SECONDS = 1.5;
 /** デモが負けたあと「FAIL」を出す時間 */
 export const FAIL_SECONDS = 2;
+/** 社会人力がこれ未満なら、リザルトに「私の社会人力、低すぎ…？」と添える（よくある広告のパロディ） */
+export const LOW_POWER = 10000;
 /** リザルトのスコアが 0 から数え上がる時間 */
 const COUNT_UP_SECONDS = 0.8;
 
@@ -236,6 +238,15 @@ export function drawResult(ctx: Ctx, r: ResultStats, message: string | null, age
   // 左に社会人力、右に称号
   text(ctx, '推定 社会人力', 160, 494, { size: 16, weight: 900, color: '#6b7280' });
   fancyText(ctx, formatPower(r.power), 160, 540, { maxWidth: 212, size: 62, top: '#7fb6ff', bottom: '#1f5fe0', stroke: '#ffffff', strokeWidth: 6, shadow: 0 });
+  if (r.power < LOW_POWER) {
+    // 広告の札のように、少し傾けて出す
+    ctx.save();
+    ctx.translate(160, 586);
+    ctx.rotate(-0.035);
+    fillRoundRect(ctx, -104, -13, 208, 26, 13, '#ffe3e3');
+    text(ctx, '私の社会人力、低すぎ…？', 0, 0.5, { size: 15, weight: 900, color: '#d81b1b', maxWidth: 196 });
+    ctx.restore();
+  }
   ctx.fillStyle = '#dfe4ee';
   ctx.fillRect(278, 484, 2, 108);
   text(ctx, '称号', 384, 494, { size: 16, weight: 900, color: '#6b7280' });
