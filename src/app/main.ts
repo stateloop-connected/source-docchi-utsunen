@@ -407,7 +407,7 @@ ${location.origin}${location.pathname}`;
     for (const e of events) {
       if (e.type === 'blockBreak' && e.kind === 'trap') this.say('それは罠！！');
       else if (e.type === 'blockBreak' && e.kind === 'hat') this.say('帽子はいらない');
-      else if (e.type === 'blockPass' && e.kind === 'bomb') this.say('ボムを取れ！！');
+      else if (e.type === 'blockPass' && e.kind === 'bomb') this.say('一斉削除を取れ！！');
     }
     const s = this.session.state;
     const panic = s.fill / s.capacity > DEMO_PANIC_RATIO;

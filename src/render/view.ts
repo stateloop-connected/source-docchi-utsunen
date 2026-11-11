@@ -74,16 +74,18 @@ export const LOOK = {
   /** mowWindow 秒のあいだに mowKills 体以上倒すと「なぎ倒し！」。次に出すまで mowCooldown 秒あける */
   mowWindow: 0.6,
   mowKills: 6,
-  mowCooldown: 2.5,
+  mowCooldown: 10,
   /** 初めて出た種類の敵を紹介する札と、その敵の頭上に名前を出す時間 */
   introTime: 3.6,
   /** 敵を倒したときのひとこと（「既読」など）を、次に出すまであける秒数。うるさくならないよう、数の多い敵（未読通知、迷惑メール）は長くあける */
-  defeatWordGap: 1.5,
-  defeatWordGapCommon: 6,
+  defeatWordGap: 8,
+  defeatWordGapCommon: 20,
+  /** 「休暇明け…」を、次に出すまであける秒数 */
+  vacationWordGap: 40,
   /** 会心を snipeTime 秒続けると「狙い撃ち！」。snipeGap 秒までの途切れは続きとみなす。次に出すまで snipeCooldown 秒あける */
   snipeTime: 2,
   snipeGap: 0.2,
-  snipeCooldown: 6,
+  snipeCooldown: 15,
   /** これより速く動いている間は、足元に砂ぼこりを出す（px/秒） */
   dustSpeed: 260,
 } as const;
@@ -328,6 +330,7 @@ export class View {
   suit = false;
   /** 前のフレームで、有給休暇の効果中だったか（切れた瞬間を知るため） */
   private onVacation = false;
+  private lastVacationWordAt = -100;
   /** 会心が続き始めた時刻（続いていなければ負の値）と、最後に会心だった時刻。「狙い撃ち！」の判定用 */
   private critSince = -1;
   private lastCritAt = -10;
@@ -579,7 +582,10 @@ export class View {
   /** 有給休暇の効果が切れたら、ひとこと出す */
   private updateVacation(s: GameState): void {
     const now = s.t < s.vacationUntil;
-    if (this.onVacation && !now && !s.over) this.toast('aside', VACATION_OVER, W / 2, 398, 26, TONE.white, 1.1);
+    if (this.onVacation && !now && !s.over && this.time - this.lastVacationWordAt >= LOOK.vacationWordGap) {
+      this.lastVacationWordAt = this.time;
+      this.toast('aside', VACATION_OVER, W / 2, 398, 26, TONE.white, 1.1);
+    }
     this.onVacation = now;
   }
 
