@@ -43,7 +43,7 @@ P = dict(
     TPS=60,                       # 1秒あたりの刻み数
     D0=40.0, G=1.2,
     R_REF=0.44 / 3,               # 4/30 + 2/150 [rank/s]
-    PHI0=0.26, KAPPA=0.004,
+    PHI0=0.30, KAPPA=0.0045,
     S0=3.0, S_SLOPE=0.02, S_MAX=8.0,
     CAP=100.0,
     WAVE=20.0, RUSH_LEN=5.0, RUSH_MULT=2.0,
@@ -56,6 +56,8 @@ P = dict(
     REV_RATE=0.10, REV_TIME=20.0,
     # 位置取り (spec 2.1, 2.2)。横位置 u は -1(左端) 〜 +1(右端)
     MIN_X=-0.9, MAX_X=0.9, MOVE_SPEED=3.0, BEAM_HALF=0.06,
+    CRIT_HALF=0.05, CRIT_MULT=2.0,          # 会心: 弱点を捉えるとダメージが倍
+    BOSS_WEAK_SWING=0.3, BOSS_WEAK_PERIOD=4.0,   # ボスの弱点は左右に往復する
     ENEMY_MIN=-0.5, ENEMY_MAX=0.5, GROUP_SPREAD=0.3, BORDER=0.55,
     BOSS_U=0.0, BOSS_HALF=0.5,
     BLOCK_COLS=(-0.76, 0.76), BLOCK_HALF=0.156,
@@ -133,7 +135,7 @@ class Game:
         self.growing = []      # 成長中のリボ払い
         self.blocks = []       # 通過時刻の早い順
         self.fill = 0.0; self.budget = 0.0; self.next_row = p["BLOCK_FIRST"]; self.rows = 0; self.next_id = 1
-        self.half_rows = []; self.doubles = 0
+        self.half_rows = []; self.doubles = 0; self.hit_ticks = 0; self.crit_ticks = 0
         self.vac_until = -1.0; self.boss_wave = 0; self.bosses_killed = 0
         self.score = 0.0; self.dead = False; self.got = {}; self.missed = {}
     @property
@@ -166,15 +168,21 @@ class Game:
         if e.kind == "boss":
             self.bosses_killed += 1; self.score += 5000 * self.bosses_killed
     def damage_enemies(self, dmg, x=None):
-        """先頭から順に、条件に合う敵へダメージ。x を渡すとその列に重なる敵だけ (プレイヤーの弾)"""
-        beam = self.p["BEAM_HALF"]; i = 0
+        """先頭から順に、条件に合う敵へダメージ。x を渡すとその列に重なる敵だけで、弱点を捉えていれば会心 (プレイヤーの弾)"""
+        p = self.p; beam = p["BEAM_HALF"]; i = 0; first = True
         while dmg > 0 and i < len(self.enemies):
             e = self.enemies[i]
-            if x is not None and abs(e.u - x) > e.hw + beam: i += 1
-            elif e.hp <= dmg:
-                dmg -= e.hp; self.enemies.pop(i); self.kill(e)
+            if x is not None and abs(e.u - x) > e.hw + beam:
+                i += 1; continue
+            crit = x is not None and abs(weak_point(e, self.t, p) - x) <= p["CRIT_HALF"]
+            mult = p["CRIT_MULT"] if crit else 1
+            if x is not None and first:
+                first = False; self.hit_ticks += 1
+                if crit: self.crit_ticks += 1
+            if e.hp <= dmg * mult:
+                dmg -= e.hp / mult; self.enemies.pop(i); self.kill(e)
             else:
-                e.hp -= dmg; dmg = 0
+                e.hp -= dmg * mult; dmg = 0
     def apply_block(self, b):
         p = self.p; k = b.kind
         self.got[k] = self.got.get(k, 0) + 1
@@ -253,7 +261,13 @@ class Game:
 PRIORITY = ["rank", "gold", "buddy", "expand", "vacation", "bomb", "trap", "hat"]
 LOOKAHEAD = 16
 
-def aim_oldest(g): return g.enemies[0].u if g.enemies else 0.0
+def weak_point(e, t, p):
+    """敵の弱点の横位置。ふつうの敵は真ん中。ボスは真ん中から左右へ一定の速さで往復する"""
+    if e.kind != "boss": return e.u
+    q = (t - e.born) / p["BOSS_WEAK_PERIOD"] + 0.25; f = q - math.floor(q)
+    return e.u + p["BOSS_WEAK_SWING"] * (4 * abs(f - 0.5) - 1)
+
+def aim_oldest(g): return weak_point(g.enemies[0], g.t, g.p) if g.enemies else 0.0
 def aim_best(g):
     """時間あたりに減らせるサイズが最も大きい敵。手前の敵にふさがれている敵は選ばない"""
     p = g.p; dps = g.dps; best = None; best_v = -1.0
@@ -262,7 +276,7 @@ def aim_best(g):
         if any(abs(g.enemies[j].u - e.u) <= g.enemies[j].hw + p["BEAM_HALF"] for j in range(i)): continue
         v = e.size / (e.hp / dps + abs(e.u - g.x) / p["MOVE_SPEED"] + 0.05)
         if v > best_v: best_v = v; best = e
-    return best.u if best else 0.0
+    return weak_point(best, g.t, g.p) if best else 0.0
 def first_of(blocks, ok):
     """通過の早い段から、優先順で 1 個"""
     best = None; best_r = math.inf
@@ -277,7 +291,7 @@ def find_block(g, id):
     return None
 
 class Bot:
-    lo = 0.3; hi = 0.6; interval = 0.5; aim_interval = 0.22; avoid = 1.0; check = False; lapse = 0.0; smart = False
+    lo = 0.3; hi = 0.6; interval = 0.5; aim_interval = 0.22; aim_error = 0.07; avoid = 1.0; check = False; lapse = 0.0; smart = False
     def __init__(self, seed):
         self.rnd = mulberry32(seed + BOT_SALT); self.next = 0.0; self.next_aim = 0.0
         self.going = False; self.target = 0; self.aim = 0.0; self.junk = {}
@@ -318,20 +332,20 @@ class Bot:
             return g.x
         if g.t >= self.next_aim - 1e-9:
             self.next_aim = g.t + self.aim_interval
-            self.aim = aim_best(g) if self.smart else aim_oldest(g)
+            self.aim = (aim_best(g) if self.smart else aim_oldest(g)) + (self.rnd() * 2 - 1) * self.aim_error
         return self.aim
 
 class EnemyOnly(Bot):
     def act(self, g):
         if g.t >= self.next_aim - 1e-9:
-            self.next_aim = g.t + self.aim_interval; self.aim = aim_oldest(g)
+            self.next_aim = g.t + self.aim_interval; self.aim = aim_oldest(g) + (self.rnd() * 2 - 1) * self.aim_error
         return self.aim
 class BlockOnly(Bot):
     def act(self, g):
         b = first_of(g.blocks, lambda b: True)
         return b.u if b else g.p["BLOCK_COLS"][1]
 class Demo(Bot):
-    interval = 0.3; aim_interval = 0.45
+    interval = 0.3; aim_interval = 0.45; aim_error = 0.12
     def __init__(self, seed):
         super().__init__(seed); self.mode = "enemy"; self.quit = set()   # mode: "enemy" / ("x", 位置) / ("block", id)
     def decide(self, g):
@@ -355,19 +369,19 @@ class Demo(Bot):
             self.next += self.interval; self.decide(g)
         if self.mode == "enemy":
             if g.t >= self.next_aim - 1e-9:
-                self.next_aim = g.t + self.aim_interval; self.aim = aim_oldest(g)
+                self.next_aim = g.t + self.aim_interval; self.aim = aim_oldest(g) + (self.rnd() * 2 - 1) * self.aim_error
             return self.aim
         if self.mode[0] == "x": return self.mode[1]
         b = find_block(g, self.mode[1])
         return b.u if b else g.x
-class Timid(Bot):  lo = 0.10; hi = 0.35; interval = 0.8;  aim_interval = 0.30; avoid = 0.5; lapse = 0.15
-class Casual(Bot): lo = 0.30; hi = 0.60; interval = 0.6;  aim_interval = 0.22; avoid = 0.8; lapse = 0.08
-class Good(Bot):   lo = 0.50; hi = 0.75; interval = 0.35; aim_interval = 0.15; avoid = 1.0; lapse = 0.03; check = True; smart = True
-class Expert(Bot): lo = 0.80; hi = 0.95; interval = 0.15; aim_interval = 0.08; avoid = 1.0; lapse = 0.0;  check = True; smart = True
+class Timid(Bot):  lo = 0.10; hi = 0.35; interval = 0.8;  aim_interval = 0.30; aim_error = 0.10; avoid = 0.5; lapse = 0.15
+class Casual(Bot): lo = 0.30; hi = 0.60; interval = 0.6;  aim_interval = 0.22; aim_error = 0.07; avoid = 0.8; lapse = 0.08
+class Good(Bot):   lo = 0.50; hi = 0.75; interval = 0.35; aim_interval = 0.15; aim_error = 0.04; avoid = 1.0; lapse = 0.03; check = True; smart = True
+class Expert(Bot): lo = 0.80; hi = 0.95; interval = 0.15; aim_interval = 0.08; aim_error = 0.015; avoid = 1.0; lapse = 0.0;  check = True; smart = True
 
 BOTS = dict(demo=Demo, enemy_only=EnemyOnly, block_only=BlockOnly, timid=Timid, casual=Casual, good=Good, expert=Expert)
 # spec 9.2 の合格範囲 (生存時間の中央値, 秒)
-PASS = dict(demo=(60, 100), enemy_only=(85, 105), block_only=(30, 110), timid=(120, 170), casual=(205, 285), good=(295, 375), expert=(335, 420))
+PASS = dict(demo=(60, 100), enemy_only=(100, 130), block_only=(30, 110), timid=(120, 170), casual=(205, 285), good=(295, 375), expert=(335, 420))
 LONGEST = 600
 DEMO_RANGE = (40, 125)
 
@@ -436,12 +450,14 @@ if __name__ == "__main__":
                     if k == "COST": p["COST"].update(v)
                     else: p[k] = v
                 return p
-            for label, kw in [("確定値", {}), ("KAPPA=0.0035", dict(KAPPA=0.0035)), ("KAPPA=0.0045", dict(KAPPA=0.0045)),
-                              ("PHI0=0.23", dict(PHI0=0.23)), ("PHI0=0.29", dict(PHI0=0.29)),
+            for label, kw in [("確定値", {}), ("KAPPA=0.004", dict(KAPPA=0.004)), ("KAPPA=0.005", dict(KAPPA=0.005)),
+                              ("PHI0=0.27", dict(PHI0=0.27)), ("PHI0=0.33", dict(PHI0=0.33)),
                               ("rank=3.0", dict(COST=dict(rank=3.0))), ("rank=4.0", dict(COST=dict(rank=4.0))),
                               ("CAP=80", dict(CAP=80.0)), ("CAP=120", dict(CAP=120.0)),
                               ("MOVE_SPEED=2.4", dict(MOVE_SPEED=2.4)), ("MOVE_SPEED=3.6", dict(MOVE_SPEED=3.6)),
-                              ("BEAM_HALF=0.04", dict(BEAM_HALF=0.04)), ("BEAM_HALF=0.09", dict(BEAM_HALF=0.09))]:
+                              ("BEAM_HALF=0.04", dict(BEAM_HALF=0.04)), ("BEAM_HALF=0.09", dict(BEAM_HALF=0.09)),
+                              ("CRIT_MULT=1.5", dict(CRIT_MULT=1.5)), ("CRIT_MULT=2.5", dict(CRIT_MULT=2.5)),
+                              ("CRIT_HALF=0.03", dict(CRIT_HALF=0.03)), ("CRIT_HALF=0.08", dict(CRIT_HALF=0.08))]:
                 p = variant(**kw)
                 print(f"{label:16s} " + "  ".join(f"{b}={stats(batch(b, 100, p, pool))['med']:.0f}" for b in ("timid", "casual", "good", "expert")), flush=True)
         else:

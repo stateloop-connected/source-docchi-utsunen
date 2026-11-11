@@ -13,6 +13,8 @@ export interface SkillParams {
   readonly interval: number;
   /** 狙う敵を決め直す間隔（秒）。反応の速さ */
   readonly aimInterval: number;
+  /** 狙いのぶれ。狙うたびに、弱点から左右にこの幅までずれる */
+  readonly aimError: number;
   /** 罠と帽子を避ける確率 */
   readonly avoid: number;
   /** 何も考えず前回の行き先を維持する確率 */
@@ -24,10 +26,10 @@ export interface SkillParams {
 }
 
 export const SKILL_BOTS = {
-  timid: { lo: 0.1, hi: 0.35, interval: 0.8, aimInterval: 0.3, avoid: 0.5, lapse: 0.15, check: false, smartAim: false },
-  casual: { lo: 0.3, hi: 0.6, interval: 0.6, aimInterval: 0.22, avoid: 0.8, lapse: 0.08, check: false, smartAim: false },
-  good: { lo: 0.5, hi: 0.75, interval: 0.35, aimInterval: 0.15, avoid: 1.0, lapse: 0.03, check: true, smartAim: true },
-  expert: { lo: 0.8, hi: 0.95, interval: 0.15, aimInterval: 0.08, avoid: 1.0, lapse: 0, check: true, smartAim: true },
+  timid: { lo: 0.1, hi: 0.35, interval: 0.8, aimInterval: 0.3, aimError: 0.1, avoid: 0.5, lapse: 0.15, check: false, smartAim: false },
+  casual: { lo: 0.3, hi: 0.6, interval: 0.6, aimInterval: 0.22, aimError: 0.07, avoid: 0.8, lapse: 0.08, check: false, smartAim: false },
+  good: { lo: 0.5, hi: 0.75, interval: 0.35, aimInterval: 0.15, aimError: 0.04, avoid: 1.0, lapse: 0.03, check: true, smartAim: true },
+  expert: { lo: 0.8, hi: 0.95, interval: 0.15, aimInterval: 0.08, aimError: 0.015, avoid: 1.0, lapse: 0, check: true, smartAim: true },
 } as const satisfies Record<string, SkillParams>;
 
 /** check が有効なボットの先読みで使う値 */
@@ -129,7 +131,7 @@ export function createSkillBot(seed: number, p: SkillParams): Bot {
       }
       if (s.t >= nextAim - TIME_EPSILON) {
         nextAim = s.t + p.aimInterval;
-        aim = p.smartAim ? aimBest(s) : aimOldest(s);
+        aim = (p.smartAim ? aimBest(s) : aimOldest(s)) + (rnd() * 2 - 1) * p.aimError;
       }
       return aim;
     },
@@ -137,14 +139,15 @@ export function createSkillBot(seed: number, p: SkillParams): Bot {
 }
 
 /** 敵だけを狙うボット（enemy_only） */
-export function createEnemyOnlyBot(): Bot {
+export function createEnemyOnlyBot(seed: number): Bot {
+  const rnd = botRandom(seed);
   let nextAim = 0;
   let aim = ENEMY_HOME;
   return {
     act(s) {
       if (s.t >= nextAim - TIME_EPSILON) {
         nextAim = s.t + SKILL_BOTS.casual.aimInterval;
-        aim = aimOldest(s);
+        aim = aimOldest(s) + (rnd() * 2 - 1) * SKILL_BOTS.casual.aimError;
       }
       return aim;
     },

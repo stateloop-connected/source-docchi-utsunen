@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { AIM, B, DT, type BlockKind, type EnemyKind } from '../src/core/balance.ts';
 import { baseHp, bossHp, dpsOf } from '../src/core/formulas.ts';
 import { mulberry32 } from '../src/core/rng.ts';
-import { createGame, sideOf, type GameEvent, type GameState } from '../src/core/state.ts';
+import { createGame, isCritical, sideOf, weakPointOf, type GameEvent, type GameState } from '../src/core/state.ts';
 import { step } from '../src/core/step.ts';
 
 const LEFT = AIM.blockCols[0];
@@ -112,13 +112,14 @@ describe('射撃', () => {
   it('余ったダメージは、同じ列の次の敵へ持ち越す。列の外の敵は飛ばす', () => {
     const s = quietGame();
     const dmg = dpsOf(0) * DT;
-    putEnemy(s, 'notice', 1, dmg * 0.25, 0);
+    // 弱点を外した位置に置く（会心にならない）
+    putEnemy(s, 'notice', 1, dmg * 0.25, 0.1);
     putEnemy(s, 'notice', 1, 1000, 0.45);
-    putEnemy(s, 'notice', 1, dmg * 0.25, 0.02);
-    putEnemy(s, 'notice', 1, dmg, -0.02);
+    putEnemy(s, 'notice', 1, dmg * 0.25, 0.12);
+    putEnemy(s, 'notice', 1, dmg, 0.08);
     const ev = step(s, 0);
     expect(ev.filter((e) => e.type === 'enemyKill')).toHaveLength(2);
-    expect(s.enemies.map((e) => e.u)).toEqual([0.45, -0.02]);
+    expect(s.enemies.map((e) => e.u)).toEqual([0.45, 0.08]);
     expect(s.enemies[0]!.hp).toBe(1000);
     expect(s.enemies[1]!.hp).toBeCloseTo(dmg * 0.5, 9);
     expect(s.fill).toBe(2);
@@ -403,5 +404,70 @@ describe('敵', () => {
     const tick = s.tick;
     expect(step(s, RIGHT)).toEqual([]);
     expect(s.tick).toBe(tick);
+  });
+});
+
+describe('会心', () => {
+  it('弾の列が敵の真ん中を捉えると、ダメージが 2 倍になる', () => {
+    const s = quietGame();
+    const dmg = dpsOf(0) * DT;
+    putEnemy(s, 'notice', 1, 1000, AIM.critHalf - 0.001);
+    step(s, 0);
+    expect(s.enemies[0]!.hp).toBeCloseTo(1000 - dmg * AIM.critMult, 9);
+    expect([s.hitTicks, s.critTicks]).toEqual([1, 1]);
+  });
+
+  it('真ん中を外すと、当たっても等倍', () => {
+    const s = quietGame();
+    const dmg = dpsOf(0) * DT;
+    putEnemy(s, 'notice', 1, 1000, AIM.critHalf + 0.01);
+    step(s, 0);
+    expect(s.enemies[0]!.hp).toBeCloseTo(1000 - dmg, 9);
+    expect([s.hitTicks, s.critTicks]).toEqual([1, 0]);
+  });
+
+  it('会心で倒した余りは、等倍に戻して次の敵へ持ち越す', () => {
+    const s = quietGame();
+    const dmg = dpsOf(0) * DT;
+    // 1 体目は会心で、弾の半分を使って倒れる。残りの半分が、弱点を外した 2 体目に等倍で入る
+    putEnemy(s, 'notice', 1, dmg, 0);
+    putEnemy(s, 'notice', 1, 1000, 0.1);
+    step(s, 0);
+    expect(s.enemies).toHaveLength(1);
+    expect(s.enemies[0]!.hp).toBeCloseTo(1000 - dmg * 0.5, 9);
+  });
+
+  it('何にも当たっていない刻みは、当てた時間に数えない', () => {
+    const s = quietGame();
+    putEnemy(s, 'notice', 1, 1000, 0.5);
+    step(s, 0);
+    expect([s.hitTicks, s.critTicks]).toEqual([0, 0]);
+  });
+
+  it('ボスの弱点は、出現時は真ん中にあり、周期の 1/4 で端、半分で真ん中、3/4 で反対の端に来る', () => {
+    const s = quietGame();
+    putEnemy(s, 'boss', B.bossSize, 1e9, AIM.bossU, AIM.bossHalf);
+    const boss = s.enemies[0]!;
+    const at = (phase: number) => weakPointOf(boss, boss.born + AIM.bossWeakPeriod * phase) - boss.u;
+    expect(at(0)).toBeCloseTo(0, 9);
+    expect(Math.abs(at(0.25))).toBeCloseTo(AIM.bossWeakSwing, 9);
+    expect(at(0.5)).toBeCloseTo(0, 9);
+    expect(at(0.75)).toBeCloseTo(-at(0.25), 9);
+    expect(at(1)).toBeCloseTo(0, 9);
+  });
+
+  it('ボスは、真ん中ではなく動く弱点に合わせたときだけ会心になる', () => {
+    const s = quietGame();
+    putEnemy(s, 'boss', B.bossSize, 1e9, AIM.bossU, AIM.bossHalf);
+    const boss = s.enemies[0]!;
+    const t = boss.born + AIM.bossWeakPeriod * 0.25;
+    expect(isCritical(boss, weakPointOf(boss, t), t)).toBe(true);
+    expect(isCritical(boss, boss.u, t)).toBe(false);
+  });
+
+  it('ふつうの敵の弱点は、いつも真ん中', () => {
+    const s = quietGame();
+    putEnemy(s, 'deadline', 6, 1000, 0.3, 0.21);
+    expect(weakPointOf(s.enemies[0]!, 123.4)).toBe(0.3);
   });
 });

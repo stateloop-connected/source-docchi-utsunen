@@ -3,7 +3,7 @@
 import { AIM, type BlockKind } from '../core/balance.ts';
 import { dpsOf } from '../core/formulas.ts';
 import { BOT_SALT, nextRandom, seedRng } from '../core/rng.ts';
-import type { Block, Enemy, GameState } from '../core/state.ts';
+import { weakPointOf, type Block, type Enemy, type GameState } from '../core/state.ts';
 
 export interface Bot {
   /** 今の刻みで立ちたい横位置を返す。毎刻み 1 回だけ呼ぶ */
@@ -39,9 +39,9 @@ function shielded(s: GameState, index: number): boolean {
 /** 狙いを決めるときに見る、列の先頭からの数 */
 const LOOKAHEAD = 16;
 
-/** いちばん古い敵を狙う（単純な狙い方） */
+/** いちばん古い敵の弱点を狙う（単純な狙い方） */
 export function aimOldest(s: GameState): number {
-  return s.enemies.length > 0 ? s.enemies[0]!.u : ENEMY_HOME;
+  return s.enemies.length > 0 ? weakPointOf(s.enemies[0]!, s.t) : ENEMY_HOME;
 }
 
 /**
@@ -62,7 +62,7 @@ export function aimBest(s: GameState): number {
       best = e;
     }
   }
-  return best ? best.u : ENEMY_HOME;
+  return best ? weakPointOf(best, s.t) : ENEMY_HOME;
 }
 
 /** 壊したいブロックの優先順（左ほど優先） */

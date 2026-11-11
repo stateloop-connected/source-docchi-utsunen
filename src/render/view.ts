@@ -3,7 +3,7 @@
 import { AIM, B, type BlockKind, type EnemyKind, type Lane } from '../core/balance.ts';
 import { bossName, dpsOf, fireRate, waveOf, weaponName, weaponStage } from '../core/formulas.ts';
 import { mulberry32 } from '../core/rng.ts';
-import { sideOf, type Enemy, type GameEvent, type GameState } from '../core/state.ts';
+import { isCritical, sideOf, weakPointOf, type Enemy, type GameEvent, type GameState } from '../core/state.ts';
 import { clamp } from './draw.ts';
 import { formatNumber } from './format.ts';
 import { W, kOf, xOf, yOf } from './projection.ts';
@@ -27,6 +27,8 @@ export interface Sfx {
   bossSpawn(): void;
   bossKill(): void;
   praise(): void;
+  /** 会心の弾が当たった */
+  crit(): void;
   gameOver(): void;
 }
 
@@ -117,6 +119,8 @@ export interface Bullet {
   /** 狙った標的の通し番号（数字をまとめるのに使う） */
   target: number;
   spin: number;
+  /** 会心の弾か */
+  crit: boolean;
 }
 
 export interface FloatNumber {
@@ -125,6 +129,8 @@ export interface FloatNumber {
   age: number;
   value: number;
   label: string;
+  /** 会心のダメージを含むか（金色で大きく出す） */
+  crit: boolean;
   /** 強化ブロックへのダメージか（色を変える） */
   block: boolean;
   tilt: number;
@@ -171,6 +177,7 @@ export const TONE = {
   red: ['#ff8f8f', '#f01f1f'],
   pink: ['#ffe0f0', '#ff8fc4'],
   green: ['#d8ffd0', '#4fd26b'],
+  crit: ['#ffffff', '#ffd000'],
 } as const satisfies Record<string, Tone>;
 
 export interface Toast {
@@ -199,6 +206,10 @@ export interface Aim {
   blockId: number;
   /** 当たっているブロックの削れ具合（0〜1）。ブロックでなければ 0 */
   progress: number;
+  /** 当たっている敵の弱点を捉えているか（会心） */
+  crit: boolean;
+  /** 当たっている敵の弱点の、画面上の x。敵でなければ x と同じ */
+  weakX: number;
 }
 
 /** ブロックの直近の位置と残り時間（壊れた・通過したときの演出用） */
@@ -284,7 +295,7 @@ export class View {
   shooting = false;
   /** プレイヤーの横の速さ（px/秒。なめらかにした値）。体の傾きと砂ぼこりに使う */
   vx = 0;
-  aim: Aim = { x: 0, y: 0, k: 1, z: 1, hit: false, enemyId: 0, blockId: 0, progress: 0 };
+  aim: Aim = { x: 0, y: 0, k: 1, z: 1, hit: false, enemyId: 0, blockId: 0, progress: 0, crit: false, weakX: 0 };
   private readonly blockSpots = new Map<number, BlockSpot>();
   private fireAcc = 0;
   private dustAcc = 0;
@@ -297,6 +308,8 @@ export class View {
   private killTimes: number[] = [];
   private lastMowAt = -10;
   private lastWave = 1;
+  /** この回で、まだ会心を出していない（初めての会心で、ひとこと説明する） */
+  private noCritYet = true;
   private readonly rnd: () => number;
   private readonly sfx: Sfx | null;
 
@@ -406,7 +419,8 @@ export class View {
       const vis = e ? this.enemies.get(e.id) : undefined;
       if (e && vis) {
         const h = sprite(vis.spriteId).h * vis.scale;
-        this.aim = { x: xOf(u, vis.z), y: vis.y - h / 2, k: kOf(vis.z), z: vis.z, hit: true, enemyId: e.id, blockId: 0, progress: 0 };
+        const x = xOf(u, vis.z);
+        this.aim = { x, y: vis.y - h / 2, k: kOf(vis.z), z: vis.z, hit: true, enemyId: e.id, blockId: 0, progress: 0, crit: isCritical(e, u, s.t), weakX: xOf(weakPointOf(e, s.t), vis.z) };
         return;
       }
     } else {
@@ -414,12 +428,13 @@ export class View {
       if (b) {
         const z = blockZ(s, b.passAt);
         const k = kOf(z);
-        this.aim = { x: xOf(u, z), y: yOf(z) - 48 * k, k, z, hit: true, enemyId: 0, blockId: b.id, progress: clamp(1 - b.hp / b.maxHp, 0, 1) };
+        const x = xOf(u, z);
+        this.aim = { x, y: yOf(z) - 48 * k, k, z, hit: true, enemyId: 0, blockId: b.id, progress: clamp(1 - b.hp / b.maxHp, 0, 1), crit: false, weakX: x };
         return;
       }
     }
     // 標的がなければ、弾は地平線まで飛んで消える
-    this.aim = { x: xOf(u, 1), y: yOf(1), k: kOf(1), z: 1, hit: false, enemyId: 0, blockId: 0, progress: 0 };
+    this.aim = { x: xOf(u, 1), y: yOf(1), k: kOf(1), z: 1, hit: false, enemyId: 0, blockId: 0, progress: 0, crit: false, weakX: xOf(u, 1) };
   }
 
   /** 銃口の位置。弾の列の真下にある */
@@ -448,31 +463,33 @@ export class View {
     const { x, y } = this.muzzle();
     const a = this.aim;
     const target = a.enemyId || a.blockId;
+    // 会心なら、表示する数字も倍にする
+    const shown = damage * (a.crit ? AIM.critMult : 1);
     this.shotAt = this.time;
     this.sfx?.shot(stage);
     // ねこ・レーザー・波動砲は弾を飛ばさず、その場で当たる
     if (stage === 15 || stage === 9 || stage === 10) {
-      if (a.hit) this.impact(a.x, a.y, a.k, damage, lane, stage === 15, target);
+      if (a.hit) this.impact(a.x, a.y, a.k, shown, lane, stage === 15, target, a.crit);
       return;
     }
     const add = (dx: number, dmg: number): void => {
       if (this.bullets.length >= LOOK.maxBullets) this.bullets.shift();
-      this.bullets.push({ x0: x, y0: y, x1: a.x + dx, y1: a.y, k1: a.k, age: 0, stage, lane, damage: a.hit ? dmg : 0, target, spin: this.rnd() * 6.28 });
+      this.bullets.push({ x0: x, y0: y, x1: a.x + dx, y1: a.y, k1: a.k, age: 0, stage, lane, damage: a.hit ? dmg : 0, target, spin: this.rnd() * 6.28, crit: a.crit });
     };
     if (stage === 5) {
       // ショットガンは扇状に 5 発。数字は真ん中の 1 発だけが出す
-      for (let i = -2; i <= 2; i++) add(i * 12 * a.k, i === 0 ? damage : 0);
+      for (let i = -2; i <= 2; i++) add(i * 12 * a.k, i === 0 ? shown : 0);
     } else if (stage === 2) {
-      add((this.rnd() - 0.5) * 36 * a.k, damage);
+      add((this.rnd() - 0.5) * 36 * a.k, shown);
     } else {
-      add((this.rnd() - 0.5) * 12 * a.k, damage);
+      add((this.rnd() - 0.5) * 12 * a.k, shown);
     }
   }
 
   private updateBullets(dt: number): void {
     for (const b of this.bullets) {
       b.age += dt;
-      if (b.age >= LOOK.bulletTime && b.damage > 0) this.impact(b.x1, b.y1, b.k1, b.damage, b.lane, false, b.target);
+      if (b.age >= LOOK.bulletTime && b.damage > 0) this.impact(b.x1, b.y1, b.k1, b.damage, b.lane, false, b.target, b.crit);
     }
     this.bullets = this.bullets.filter((b) => b.age < LOOK.bulletTime);
   }
@@ -508,10 +525,11 @@ export class View {
    * 着弾。数字は標的の絵や文字に重ならないよう、少し上に出す。
    * 同じ標的に続けて当たった分は、1 つの数字に足し込んで大きく見せる。
    */
-  private impact(x: number, y: number, k: number, damage: number, lane: Lane, sparkle: boolean, target: number): void {
+  private impact(x: number, y: number, k: number, damage: number, lane: Lane, sparkle: boolean, target: number, crit: boolean): void {
     const recent = this.numbers.find((n) => n.target === target && n.age < LOOK.numberMerge);
     if (recent) {
       recent.value += damage;
+      if (crit) recent.crit = true;
       recent.label = formatNumber(recent.value);
       recent.bumpedAt = this.time;
     } else {
@@ -523,6 +541,7 @@ export class View {
         value: damage,
         label: formatNumber(damage),
         block: lane === 'block',
+        crit,
         tilt: (this.rnd() - 0.5) * 0.3,
         target,
         bumpedAt: this.time,
@@ -534,7 +553,16 @@ export class View {
       this.sfx?.blockHit(this.aim.progress);
     } else {
       this.enemyHitAt = this.time;
+      if (crit) this.onCrit();
     }
+  }
+
+  /** 会心が当たった。初めてのときだけ、何が起きたかをひとこと出す */
+  private onCrit(): void {
+    this.sfx?.crit();
+    if (!this.noCritYet) return;
+    this.noCritYet = false;
+    this.toast('praise', `会心！ 真ん中に当てるとダメージ ${AIM.critMult} 倍`, W / 2, 300, 30, TONE.gold, 1.8);
   }
 
   /** 破片を散らす */

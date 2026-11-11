@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import golden from '../reference/golden.json';
 import { aimBest, aimOldest, timeToBreak } from '../src/bots/bot.ts';
-import { createDemoBot } from '../src/bots/demo.ts';
+import { DEMO, createDemoBot } from '../src/bots/demo.ts';
 import { BOT_NAMES } from '../src/bots/index.ts';
 import { SKILL_BOTS, createSkillBot } from '../src/bots/skill.ts';
 import { AIM, type BlockKind, type EnemyKind } from '../src/core/balance.ts';
@@ -72,6 +72,8 @@ describe('敵の狙い方', () => {
 });
 
 describe('デモ AI の 7 つの規則', () => {
+  // 敵を狙うときは、狙いがぶれる（真ん中の敵でも、ぴったり 0 にはならない）
+  const nearCentre = expect.closeTo(0, 0);
   const decide = (s: GameState, seed = 7) => {
     const bot = createDemoBot(seed);
     return { aim: bot.act(s), rule: bot.rule };
@@ -79,7 +81,7 @@ describe('デモ AI の 7 つの規則', () => {
 
   it('1: ブロックがなければ、埋まり度 20% 未満で何もない強化の帯を空撃ちする', () => {
     expect(decide(createGame(1))).toEqual({ aim: RIGHT, rule: 1 });
-    expect(decide(withFill(0.2))).toEqual({ aim: 0, rule: 1 });
+    expect(decide(withFill(0.2))).toEqual({ aim: nearCentre, rule: 1 });
   });
 
   it('2: 最初のランクアップだけは、埋まっていても取りに行く', () => {
@@ -100,7 +102,7 @@ describe('デモ AI の 7 つの規則', () => {
     const s = withFill(0.9);
     s.player.rank = 1;
     addBlock(s, 'bomb', 0);
-    expect(decide(s)).toEqual({ aim: 0, rule: 4 });
+    expect(decide(s)).toEqual({ aim: nearCentre, rule: 4 });
   });
 
   it('5: 狙っていたブロックが残り 12% を切ると見捨て、二度と狙わない', () => {
@@ -112,7 +114,7 @@ describe('デモ AI の 7 つの規則', () => {
     expect(bot.rule).toBe(7);
     s.blocks.find((b) => b.id === id)!.hp = 11;
     s.t = 0.3;
-    expect(bot.act(s)).toBe(0);
+    expect(Math.abs(bot.act(s))).toBeLessThanOrEqual(DEMO.aimError);
     expect(bot.rule).toBe(5);
     s.t = 0.6;
     bot.act(s);
@@ -141,7 +143,7 @@ describe('デモ AI の 7 つの規則', () => {
     const highFill = withFill(0.5);
     highFill.player.rank = 1;
     addBlock(highFill, 'gold', 0);
-    expect(decide(highFill)).toEqual({ aim: 0, rule: 7 });
+    expect(decide(highFill)).toEqual({ aim: nearCentre, rule: 7 });
   });
 
   it('0.3 秒ごとにしか決め直さない', () => {
@@ -152,12 +154,12 @@ describe('デモ AI の 7 つの規則', () => {
     s.t = 0.2;
     expect(bot.act(s)).toBe(RIGHT);
     s.t = 0.3;
-    expect(bot.act(s)).toBe(0);
+    expect(Math.abs(bot.act(s))).toBeLessThanOrEqual(DEMO.aimError);
   });
 });
 
 describe('腕前ボット', () => {
-  const steady = { ...SKILL_BOTS.casual, lapse: 0, avoid: 1 };
+  const steady = { ...SKILL_BOTS.casual, lapse: 0, avoid: 1, aimError: 0 };
 
   it('最初は敵を狙う。lo 未満で強化へ行き、hi を超えるまで戻らない', () => {
     const bot = createSkillBot(1, steady);
@@ -212,7 +214,7 @@ describe('腕前ボット', () => {
   });
 
   it('check ありのボットは、壊し切れないブロックと、空いているときのボムを取りに行かない', () => {
-    const p = { ...SKILL_BOTS.expert };
+    const p = { ...SKILL_BOTS.expert, aimError: 0 };
     const far = createGame(1);
     far.blocks.push({ id: 1, kind: 'rank', hp: 40 * 10, maxHp: 400, passAt: 8, row: 1, col: 1, u: RIGHT });
     expect(createSkillBot(1, p).act(far)).toBe(0);
@@ -240,7 +242,7 @@ describe('参照シミュレータとの一致', () => {
 });
 
 describe('急ぎのボム', () => {
-  const steady = { ...SKILL_BOTS.casual, lapse: 0, avoid: 1 };
+  const steady = { ...SKILL_BOTS.casual, lapse: 0, avoid: 1, aimError: 0 };
 
   it('埋まり度 50% 超のボムは、敵を撃つのをやめてでも取りに行く', () => {
     const s = withFill(0.7);
@@ -260,12 +262,37 @@ describe('急ぎのボム', () => {
   });
 
   it('check ありのボットは、急ぎのボムなら溢れそうでも取りに行く。間に合わないなら行かない', () => {
-    const p = { ...SKILL_BOTS.expert };
+    const p = { ...SKILL_BOTS.expert, aimError: 0 };
     const s = withFill(0.93);
     addBlock(s, 'bomb', 0, { hpRatio: 0.1 });
     expect(createSkillBot(1, p).act(s)).toBe(LEFT);
     const late = withFill(0.93);
     addBlock(late, 'bomb', 0, { passAt: 0.3 });
     expect(createSkillBot(1, p).act(late)).toBe(0);
+  });
+});
+
+describe('狙いのぶれ', () => {
+  it('腕前ボットは、aimError の幅の中で狙いがぶれる。うまいボットほどぶれが小さい', () => {
+    const spread = (name: keyof typeof SKILL_BOTS): number => {
+      let worst = 0;
+      for (let seed = 0; seed < 40; seed++) {
+        const s = createGame(1);
+        addEnemy(s, 'notice', 0.2, 100);
+        const aim = createSkillBot(seed, { ...SKILL_BOTS[name], lapse: 0 }).act(s);
+        expect(Math.abs(aim - 0.2)).toBeLessThanOrEqual(SKILL_BOTS[name].aimError + 1e-12);
+        worst = Math.max(worst, Math.abs(aim - 0.2));
+      }
+      return worst;
+    };
+    expect(spread('expert')).toBeLessThan(spread('good'));
+    expect(spread('good')).toBeLessThan(spread('casual'));
+    expect(spread('casual')).toBeLessThan(spread('timid'));
+  });
+
+  it('うまいボットのぶれは会心の幅に収まり、デモ AI のぶれは収まらない', () => {
+    expect(SKILL_BOTS.expert.aimError).toBeLessThan(AIM.critHalf);
+    expect(SKILL_BOTS.good.aimError).toBeLessThan(AIM.critHalf);
+    expect(DEMO.aimError).toBeGreaterThan(AIM.critHalf);
   });
 });

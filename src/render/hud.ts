@@ -196,7 +196,7 @@ function drawGuide(ctx: Ctx, s: GameState, v: View): void {
   const bounce = Math.abs(Math.sin(v.time * 5)) * 6;
   ctx.globalAlpha = fade;
   fillRoundRect(ctx, 76, 104, 388, 34, 17, 'rgba(10,14,30,0.7)');
-  text(ctx, '← 左右に動いて狙う →　撃つのは自動', W / 2, 122, { size: 16, weight: 900, color: '#ffffff', maxWidth: 360 });
+  text(ctx, '← 左右に動いて狙う →　真ん中に当てると会心', W / 2, 122, { size: 16, weight: 900, color: '#ffffff', maxWidth: 360 });
   // 真ん中は敵、両端は強化ブロック
   ctx.globalAlpha = fade * 0.92;
   fancyText(ctx, '▼ 敵 ▼', xOf(0, 0.1), yOf(0.1) + bounce, { size: 30, top: '#ffd0d0', bottom: '#ff5c5c' });

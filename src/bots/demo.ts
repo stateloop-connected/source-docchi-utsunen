@@ -7,6 +7,8 @@ export const DEMO = {
   interval: 0.3,
   /** 狙う敵を決め直す間隔。反応が遅い */
   aimInterval: 0.45,
+  /** 狙いのぶれ。会心はめったに出ない */
+  aimError: 0.12,
   /** 規則 1: ブロックがないとき、埋まり度の割合がこれ未満なら、何もない強化の帯で空撃ちする */
   idleFill: 0.2,
   /** 規則 5: 狙ったブロックの残り HP がこの割合を切ったら離れる */
@@ -85,7 +87,7 @@ export function createDemoBot(seed: number): DemoBot {
       if (target === 'enemy') {
         if (s.t >= nextAim - TIME_EPSILON) {
           nextAim = s.t + DEMO.aimInterval;
-          enemyAim = aimOldest(s);
+          enemyAim = aimOldest(s) + (rnd() * 2 - 1) * DEMO.aimError;
         }
         return enemyAim;
       }

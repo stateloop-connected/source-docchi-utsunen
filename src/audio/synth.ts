@@ -6,7 +6,7 @@ import type { Sfx } from '../render/view.ts';
 const TAIL = 0.015;
 
 /** 1 秒あたりに鳴らす回数の上限 */
-const LIMIT = { shot: 12, kill: 10, blockHit: 8, pickup: 6 } as const;
+const LIMIT = { shot: 12, kill: 10, blockHit: 8, pickup: 6, crit: 10 } as const;
 
 /** 音量の配分。効果音と BGM を別の系統にまとめ、最後に圧縮して音割れを防ぐ */
 const MIX = {
@@ -226,6 +226,13 @@ export class Synth implements Sfx {
     const f = 170 * 2 ** (progress * 1.6);
     this.tone('square', f, f * 0.7, 0.045, 0.3);
     this.noise(0.03, 0.2, 2500, 1200, 'bandpass');
+  }
+
+  /** 会心の弾が当たった。ふつうの命中と聞き分けられる、高く澄んだ短い音 */
+  crit(): void {
+    if (!this.ready || !this.allow('crit', LIMIT.crit)) return;
+    const j = this.jitter(0.03);
+    this.tone('triangle', 1760 * j, 2217 * j, 0.06, 0.3);
   }
 
   kill(): void {

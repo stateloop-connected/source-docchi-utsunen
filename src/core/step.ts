@@ -3,7 +3,7 @@ import { AIM, B, BLOCKS, CALM_MULT, DT, ENEMIES, RUSH_START, SCORE, TPS, TRAP_EN
 import { drawRow } from './deck.ts';
 import { baseHp, bossHp, dpsOf, sizeRate, unlockedCount, waveOf, weaponStage } from './formulas.ts';
 import { nextRandom } from './rng.ts';
-import type { Block, Enemy, GameEvent, GameState } from './state.ts';
+import { isCritical, type Block, type Enemy, type GameEvent, type GameState } from './state.ts';
 
 function addEnemy(s: GameState, kind: EnemyKind | 'boss', hp: number, size: number, u: number, halfWidth: number, bossIndex = 0): void {
   const e: Enemy = { id: s.nextId++, kind, hp, hp0: hp, size, born: s.t, bossIndex, u, halfWidth };
@@ -60,20 +60,32 @@ function removeEnemy(s: GameState, e: Enemy, byBomb: boolean, ev: GameEvent[]): 
 
 /**
  * 列の先頭から順に、条件に合う敵へダメージを与える。余りは次の合う敵へ持ち越す。
- * x を渡すと、その列に重なる敵だけが対象（プレイヤーの弾）。渡さなければ全員が対象（相棒）。
+ * x を渡すと、その列に重なる敵だけが対象で、弱点を捉えていれば会心になる（プレイヤーの弾）。
+ * 渡さなければ全員が対象で、会心はない（相棒）。
  */
 function damageEnemies(s: GameState, dmg: number, ev: GameEvent[], x?: number): void {
   let i = 0;
+  let first = true;
   while (dmg > 0 && i < s.enemies.length) {
     const e = s.enemies[i]!;
     if (x !== undefined && Math.abs(e.u - x) > e.halfWidth + AIM.beamHalf) {
       i++;
-    } else if (e.hp <= dmg) {
-      dmg -= e.hp;
+      continue;
+    }
+    // 弱点を捉えていれば会心。同じ火力で critMult 倍のダメージが入る
+    const crit = x !== undefined && isCritical(e, x, s.t);
+    const mult = crit ? AIM.critMult : 1;
+    if (x !== undefined && first) {
+      first = false;
+      s.hitTicks++;
+      if (crit) s.critTicks++;
+    }
+    if (e.hp <= dmg * mult) {
+      dmg -= e.hp / mult;
       s.enemies.splice(i, 1);
       removeEnemy(s, e, false, ev);
     } else {
-      e.hp -= dmg;
+      e.hp -= dmg * mult;
       dmg = 0;
     }
   }

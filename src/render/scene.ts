@@ -1,7 +1,7 @@
 // 背景・道・敵・ブロック・プレイヤー・弾・エフェクトの描画（仕様書 6 章）。状態を読むだけで書き換えない。
 import { AIM, B, RUSH_START } from '../core/balance.ts';
 import { bossName, dpsOf, waveOf, weaponStage } from '../core/formulas.ts';
-import type { Block, GameState } from '../core/state.ts';
+import { weakPointOf, type Block, type GameState } from '../core/state.ts';
 import { INK, circle, clamp, ellipse, fancyText, fillRoundRect, gradV, lerp, poly, text, type Ctx } from './draw.ts';
 import { formatHp } from './format.ts';
 import { CENTER_X, FRONT_Y, H, HALF_ROAD, HORIZON_Y, W, kOf, xOf, yOf } from './projection.ts';
@@ -266,23 +266,6 @@ function drawBarricade(ctx: Ctx, time: number, danger: boolean): void {
 }
 
 /** 弾の列を、プレイヤーから標的まで薄く光らせる。狙いがどこに当たっているかを見せる */
-function drawAimColumn(ctx: Ctx, s: GameState, v: View): void {
-  if (s.over) return;
-  const u = s.player.x;
-  const a = 0.15 + 0.04 * Math.sin(v.time * 9);
-  band(ctx, u - AIM.beamHalf, u + AIM.beamHalf, 0, v.aim.z, `rgba(255,255,255,${v.aim.hit ? a : a * 0.45})`);
-  // 列の両端に細い線を引いて、当たる幅をはっきり見せる
-  for (const side of [-1, 1]) band(ctx, u + side * AIM.beamHalf - 0.004, u + side * AIM.beamHalf + 0.004, 0, v.aim.z, `rgba(255,255,255,${v.aim.hit ? 0.4 : 0.18})`);
-  if (v.aim.hit) {
-    // 標的の足元に、脈打つ輪を出す
-    const r = (30 + 4 * Math.sin(v.time * 10)) * v.aim.k + 6;
-    ctx.strokeStyle = 'rgba(255,255,255,0.85)';
-    ctx.lineWidth = 2.5;
-    ctx.beginPath();
-    ctx.ellipse(v.aim.x, yOf(v.aim.z), r, r * 0.32, 0, 0, Math.PI * 2);
-    ctx.stroke();
-  }
-}
 
 /** 今の塗り（fillStyle）で角丸の四角を塗る */
 function fillRoundRectPath(ctx: Ctx, x: number, y: number, w: number, h: number, r: number): void {
@@ -625,12 +608,13 @@ function drawEffects(ctx: Ctx, v: View): void {
     // 足し込まれるたびに弾む
     const since = v.time - n.bumpedAt;
     const pop = since < 0.08 ? 1.45 - (since / 0.08) * 0.45 : 1;
-    const tone = n.block ? TONE.gold : TONE.white;
+    // 会心は金色で大きく、強化ブロックへのダメージは金色、ふつうは白
+    const tone = n.crit ? TONE.crit : n.block ? TONE.gold : TONE.white;
     ctx.globalAlpha = clamp(1.7 - t * 1.7, 0, 1);
     ctx.save();
     ctx.translate(n.x, n.y - t * 38);
     ctx.rotate(n.tilt);
-    fancyText(ctx, n.label, 0, 0, { size: 22 * pop, top: tone[0], bottom: tone[1], strokeWidth: 4.5, shadow: 1.5 });
+    fancyText(ctx, n.label, 0, 0, { size: (n.crit ? 30 : 22) * pop, top: tone[0], bottom: tone[1], strokeWidth: n.crit ? 5.5 : 4.5, shadow: 1.5 });
     ctx.restore();
   }
   ctx.globalAlpha = 1;
@@ -701,6 +685,7 @@ export function drawScene(ctx: Ctx, s: GameState, v: View): void {
   drawAimColumn(ctx, s, v);
   drawBlocks(ctx, s, v);
   drawEnemies(ctx, s, v);
+  drawWeakPoints(ctx, s, v);
   drawBarricade(ctx, v.time, danger);
   drawBuddies(ctx, s, v);
   drawPlayer(ctx, s, v);
@@ -740,4 +725,72 @@ function drawRushGlow(ctx: Ctx, s: GameState, v: View): void {
   g.addColorStop(1, boss ? `rgba(170,60,255,${a})` : `rgba(255,60,40,${a})`);
   ctx.fillStyle = g;
   ctx.fillRect(0, HORIZON_Y - 120, W, 120);
+}
+
+/** 弾の列を、プレイヤーから標的まで薄く光らせる。狙いがどこに当たっているかを見せる。会心のあいだは金色 */
+function drawAimColumn(ctx: Ctx, s: GameState, v: View): void {
+  if (s.over) return;
+  const u = s.player.x;
+  const rgb = v.aim.crit ? '255,214,64' : '255,255,255';
+  const a = (v.aim.crit ? 0.3 : 0.15) + 0.04 * Math.sin(v.time * 9);
+  band(ctx, u - AIM.beamHalf, u + AIM.beamHalf, 0, v.aim.z, `rgba(${rgb},${v.aim.hit ? a : a * 0.45})`);
+  // 列の両端に細い線を引いて、当たる幅をはっきり見せる
+  for (const side of [-1, 1]) band(ctx, u + side * AIM.beamHalf - 0.004, u + side * AIM.beamHalf + 0.004, 0, v.aim.z, `rgba(${rgb},${v.aim.hit ? 0.45 : 0.18})`);
+  if (v.aim.hit) {
+    // 標的の足元に、脈打つ輪を出す
+    const r = (30 + 4 * Math.sin(v.time * 10)) * v.aim.k + 6;
+    ctx.strokeStyle = `rgba(${rgb},0.85)`;
+    ctx.lineWidth = v.aim.crit ? 4 : 2.5;
+    ctx.beginPath();
+    ctx.ellipse(v.aim.x, yOf(v.aim.z), r, r * 0.32, 0, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+}
+
+/** 的の印（同心円と十字）。hot なら金色に光らせる */
+function drawTarget(ctx: Ctx, x: number, y: number, r: number, hot: boolean, time: number): void {
+  if (hot) {
+    ctx.globalCompositeOperation = 'lighter';
+    circle(ctx, x, y, r * (1.5 + 0.2 * Math.sin(time * 30)), 'rgba(255,214,64,0.45)');
+    ctx.globalCompositeOperation = 'source-over';
+  }
+  ctx.lineWidth = Math.max(1.5, r * 0.22);
+  ctx.strokeStyle = INK;
+  ctx.beginPath();
+  ctx.arc(x, y, r, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.lineWidth = Math.max(1, r * 0.13);
+  ctx.strokeStyle = hot ? '#ffd640' : '#ffffff';
+  ctx.beginPath();
+  ctx.arc(x, y, r, 0, Math.PI * 2);
+  ctx.moveTo(x - r * 1.5, y);
+  ctx.lineTo(x - r * 0.45, y);
+  ctx.moveTo(x + r * 0.45, y);
+  ctx.lineTo(x + r * 1.5, y);
+  ctx.moveTo(x, y - r * 1.5);
+  ctx.lineTo(x, y - r * 0.45);
+  ctx.moveTo(x, y + r * 0.45);
+  ctx.lineTo(x, y + r * 1.5);
+  ctx.stroke();
+  circle(ctx, x, y, Math.max(1.2, r * 0.2), hot ? '#ffd640' : '#ffffff');
+}
+
+/**
+ * 敵の弱点の印。ここを弾の列で捉えると会心になる。
+ * ボスの弱点は左右に動くので、いつも見せる。ふつうの敵は、今当たっている敵にだけ出す。
+ */
+function drawWeakPoints(ctx: Ctx, s: GameState, v: View): void {
+  if (s.over) return;
+  for (const e of s.enemies) {
+    if (e.kind !== 'boss') continue;
+    const vis = v.enemies.get(e.id);
+    if (!vis) continue;
+    const h = sprite(vis.spriteId).h * vis.scale;
+    const hot = v.aim.enemyId === e.id && v.aim.crit;
+    drawTarget(ctx, xOf(weakPointOf(e, s.t), vis.z), vis.y - h * 0.45, 20 * vis.scale + 3, hot, v.time);
+  }
+  if (v.aim.enemyId === 0) return;
+  const target = s.enemies.find((e) => e.id === v.aim.enemyId);
+  if (!target || target.kind === 'boss') return;
+  drawTarget(ctx, v.aim.weakX, v.aim.y, 13 * v.aim.k + 3, v.aim.crit, v.time);
 }

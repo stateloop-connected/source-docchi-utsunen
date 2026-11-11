@@ -11,7 +11,7 @@ const RUNS = 100;
 /** 9.2 節: 生存時間の中央値（秒）の合格範囲 */
 const PASS: Record<BotName, readonly [number, number]> = {
   demo: [60, 100],
-  enemy_only: [85, 105],
+  enemy_only: [100, 130],
   block_only: [30, 110],
   timid: [120, 170],
   casual: [205, 285],

@@ -11,7 +11,7 @@ export function createBot(name: BotName, seed: number): Bot {
     case 'demo':
       return createDemoBot(seed);
     case 'enemy_only':
-      return createEnemyOnlyBot();
+      return createEnemyOnlyBot(seed);
     case 'block_only':
       return createBlockOnlyBot();
     default:

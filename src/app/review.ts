@@ -1,5 +1,6 @@
 // リザルトに出す「称号」と「ひとこと」（仕様書 6.6 節）。遊び方の傾向から、負けた原因を言葉にして返す。
 // スコアやルールには影響しない。
+import { AIM, DT } from '../core/balance.ts';
 import type { GameState } from '../core/state.ts';
 
 export interface Review {
@@ -12,6 +13,8 @@ export interface Review {
   offered: number;
   /** 同じ段の 2 個を両方壊した回数 */
   doubles: number;
+  /** 敵に当てていた時間のうち、会心だった割合（0〜1） */
+  critRate: number;
 }
 
 /** 判定に使うしきい値 */
@@ -31,6 +34,11 @@ export const REVIEW = {
   nearMisses: 3,
   trapHint: 2,
   bombsMissed: 3,
+  /** 狙撃手: 敵に当てていた時間がこの秒数以上で、会心の割合がこれ以上 */
+  sniperSeconds: 20,
+  sniperRate: 0.6,
+  /** 会心の割合がこれ以下なら、ひとことで会心を教える */
+  critHint: 0.3,
 } as const;
 
 /**
@@ -40,11 +48,15 @@ export function reviewPlay(s: GameState, blockShare: number, nearMisses: number)
   const taken = s.got.rank + s.got.gold;
   const offered = taken + s.missed.rank + s.missed.gold;
 
+  const critRate = s.hitTicks > 0 ? s.critTicks / s.hitTicks : 0;
+  const aimed = s.hitTicks * DT >= REVIEW.sniperSeconds;
+
   let title = 'バランス型';
   if (s.got.trap >= REVIEW.traps) title = '激安ハンター';
   else if (s.player.hats >= REVIEW.hats) title = '帽子コレクター';
   else if (s.bossesKilled >= REVIEW.bosses) title = 'ボスキラー';
   else if (s.doubles >= REVIEW.doubles) title = '両取り名人';
+  else if (aimed && critRate >= REVIEW.sniperRate) title = '狙撃手';
   else if (blockShare >= REVIEW.greedy) title = '欲張りさん';
   else if (blockShare <= REVIEW.timid) title = '慎重派';
   else if (offered >= REVIEW.collectorOffered && taken / offered >= REVIEW.collectorRatio) title = '強化の鬼';
@@ -55,6 +67,7 @@ export function reviewPlay(s: GameState, blockShare: number, nearMisses: number)
   else if (nearMisses >= REVIEW.nearMisses) hint = `あと少しで逃した強化が ${nearMisses} 個。数字が赤いブロックは見送ろう`;
   else if (s.got.trap >= REVIEW.trapHint) hint = `「激安！」を ${s.got.trap} 回壊した。あれは罠`;
   else if (s.missed.bomb >= REVIEW.bombsMissed) hint = `一斉削除を ${s.missed.bomb} 個見送った。埋まってきたら頼ろう`;
+  else if (aimed && critRate <= REVIEW.critHint) hint = `会心は ${Math.round(critRate * 100)}%。敵の真ん中を捉えるとダメージ ${AIM.critMult} 倍`;
 
-  return { title, hint, taken, offered, doubles: s.doubles };
+  return { title, hint, taken, offered, doubles: s.doubles, critRate };
 }

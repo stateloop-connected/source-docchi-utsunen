@@ -75,6 +75,9 @@ export interface GameState {
   score: number;
   got: Record<BlockKind, number>;
   missed: Record<BlockKind, number>;
+  /** プレイヤーの弾が敵に当たっていた刻みの数と、そのうち会心だった刻みの数 */
+  hitTicks: number;
+  critTicks: number;
   /** 両取りした段の数 */
   doubles: number;
   nextId: number;
@@ -134,7 +137,25 @@ export function createGame(seed: number): GameState {
     score: 0,
     got: zeroCounts(),
     missed: zeroCounts(),
+    hitTicks: 0,
+    critTicks: 0,
     doubles: 0,
     nextId: 1,
   };
+}
+
+/**
+ * 敵の弱点の横位置。ここを弾の列で捉えると会心になる（仕様書 2.2 節）。
+ * ふつうの敵は真ん中。ボスは、真ん中から左右へ一定の速さで往復する（出現した瞬間は真ん中にある）。
+ */
+export function weakPointOf(e: Enemy, t: number): number {
+  if (e.kind !== 'boss') return e.u;
+  const p = (t - e.born) / AIM.bossWeakPeriod + 0.25;
+  const f = p - Math.floor(p);
+  return e.u + AIM.bossWeakSwing * (4 * Math.abs(f - 0.5) - 1);
+}
+
+/** 弾の列 x が、敵の弱点を捉えているか */
+export function isCritical(e: Enemy, x: number, t: number): boolean {
+  return Math.abs(weakPointOf(e, t) - x) <= AIM.critHalf;
 }

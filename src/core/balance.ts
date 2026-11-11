@@ -17,8 +17,8 @@ export const B = {
   g: 1.2,
   /** 基準のランク供給（ランク/秒）。ランクアップ 4 個/30 秒 + 金（+2）1 個/150 秒 */
   rRef: 0.44 / 3,
-  phi0: 0.26,
-  kappa: 0.004,
+  phi0: 0.3,
+  kappa: 0.0045,
   sizeBase: 3,
   sizeSlope: 0.02,
   sizeMax: 8,
@@ -60,6 +60,12 @@ export const AIM = {
   moveSpeed: 3,
   /** 弾の列の半分の幅。標的の半分の幅にこれを足した範囲に入っていれば当たる */
   beamHalf: 0.06,
+  /** 会心: 弾の列と敵の弱点との差がこれ以下なら、与えるダメージが critMult 倍になる。ふつうの敵の弱点は真ん中 */
+  critHalf: 0.05,
+  critMult: 2,
+  /** ボスの弱点は、真ん中から左右に bossWeakSwing の幅で、bossWeakPeriod 秒かけて往復する */
+  bossWeakSwing: 0.3,
+  bossWeakPeriod: 4,
   /** 敵が並ぶ範囲（道の中央） */
   enemyMin: -0.5,
   enemyMax: 0.5,

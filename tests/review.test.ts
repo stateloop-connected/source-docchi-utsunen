@@ -59,3 +59,35 @@ describe('リザルトの称号とひとこと', () => {
     expect(reviewPlay(s, 0.5, 0).hint).toContain('いい勝負');
   });
 });
+
+describe('会心の振り返り', () => {
+  it('会心の割合は、敵に当てていた時間のうち会心だった割合。当てていなければ 0', () => {
+    const s = createGame(1);
+    expect(reviewPlay(s, 0.5, 0).critRate).toBe(0);
+    s.hitTicks = 200;
+    s.critTicks = 50;
+    expect(reviewPlay(s, 0.5, 0).critRate).toBe(0.25);
+  });
+
+  it('20 秒以上当てて、会心が 6 割以上なら「狙撃手」', () => {
+    const s = createGame(1);
+    s.hitTicks = 60 * 20;
+    s.critTicks = 60 * 12;
+    expect(reviewPlay(s, 0.5, 0).title).toBe('狙撃手');
+    s.critTicks = 60 * 12 - 1;
+    expect(reviewPlay(s, 0.5, 0).title).toBe('バランス型');
+    // 当てた時間が短いうちは、たまたまの会心で称号を出さない
+    s.hitTicks = 60 * 20 - 1;
+    s.critTicks = s.hitTicks;
+    expect(reviewPlay(s, 0.5, 0).title).toBe('バランス型');
+  });
+
+  it('会心が 3 割以下なら、ひとことで会心を教える', () => {
+    const s = createGame(1);
+    s.hitTicks = 60 * 30;
+    s.critTicks = 60 * 6;
+    expect(reviewPlay(s, 0.5, 0).hint).toContain('会心は 20%');
+    s.critTicks = 60 * 15;
+    expect(reviewPlay(s, 0.5, 0).hint).toContain('いい勝負');
+  });
+});
